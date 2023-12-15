@@ -1,0 +1,10 @@
+numpy==1.26.0
+packaging==23.2
+pandas==2.1.2
+plotly==5.18.0
+python-dateutil==2.8.2
+pytz==2023.3.post1
+simpy==4.1.0
+six==1.16.0
+tenacity==8.2.3
+tzdata==2023.3
