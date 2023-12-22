@@ -7,7 +7,8 @@ import gc
 
 def reshape_for_animations(event_log, 
                            every_x_time_units=10,
-                           limit_duration=10*60*24):
+                           limit_duration=10*60*24,
+                           step_snapshot_max=50):
     patient_dfs = []
 
     pivoted_log = event_log.pivot_table(values="time",
@@ -53,10 +54,25 @@ def reshape_for_animations(event_log,
                 most_recent_events_minute_ungrouped = patient_minute_df[patient_minute_df['time'] <= minute].reset_index(drop=False) \
                     .sort_values(['time', 'index'], ascending=True) \
                     .groupby(['patient']) \
-                    .tail(1) \
-                    .drop(columns="index")
+                    .tail(1) 
+                
+                most_recent_events_minute_ungrouped['rank'] = most_recent_events_minute_ungrouped.groupby(['event'])['index'] \
+                              .rank(method='first')
+                
+                most_recent_events_minute_ungrouped['max'] = most_recent_events_minute_ungrouped.groupby('event')['rank'].transform('max')
 
-                patient_dfs.append(most_recent_events_minute_ungrouped.assign(minute=minute))
+                most_recent_events_minute_ungrouped = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] <= step_snapshot_max].copy()
+
+                maximum_row_per_event_df = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] == float(step_snapshot_max)].copy()
+                maximum_row_per_event_df['additional'] = ''
+                if len(maximum_row_per_event_df) > 0:
+                    maximum_row_per_event_df['additional'] = maximum_row_per_event_df['max'] - maximum_row_per_event_df['rank']
+                    most_recent_events_minute_ungrouped = pd.concat(
+                        [most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] != float(step_snapshot_max)],
+                        maximum_row_per_event_df]
+                    )
+
+                patient_dfs.append(most_recent_events_minute_ungrouped.assign(minute=minute).drop(columns='max'))
 
     full_patient_df = (pd.concat(patient_dfs, ignore_index=True)).reset_index(drop=True)
 
@@ -83,10 +99,11 @@ def animate_activity_log(
         event_position_df,
         scenario,
         every_x_time_units=10,
+        wrap_queues_at=20,
+        step_snapshot_max=50,
         limit_duration=10*60*24,
         plotly_height=900,
         plotly_width=None,
-        wrap_queues_at=None,
         include_play_button=True,
         return_df_only=False,
         add_background_image=None,
@@ -138,7 +155,8 @@ def animate_activity_log(
 
     full_patient_df = reshape_for_animations(event_log, 
                                              every_x_time_units=every_x_time_units,
-                                             limit_duration=limit_duration)
+                                             limit_duration=limit_duration,
+                                             step_snapshot_max=step_snapshot_max)
     
     # Order patients within event/minute/rep to determine their eventual position in the line
     full_patient_df['rank'] = full_patient_df.groupby(['event','minute'])['minute'] \
@@ -201,6 +219,16 @@ def animate_activity_log(
         pd.DataFrame({'patient':list(individual_patients),
                       'icon':full_icon_list}),
         on="patient")
+    
+    if 'additional' in full_patient_df_plus_pos.columns:
+        exceeded_snapshot_limit = full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].notna()]
+        exceeded_snapshot_limit['icon'] = exceeded_snapshot_limit['additional']
+        full_patient_df_plus_pos = pd.concat(
+            [
+                full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].isna()], exceeded_snapshot_limit
+            ],
+            ignore_index=True
+        )
 
     if return_df_only:
         return full_patient_df_plus_pos

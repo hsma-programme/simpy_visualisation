@@ -6,7 +6,7 @@ from output_animation_functions import animate_activity_log, reshape_for_animati
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
-args = Scenario(manual_arrival_rate=6.5,
+args = Scenario(manual_arrival_rate=2,
                 n_cubicles_1=5)
 
 model = TreatmentCentreModelSimpleNurseStepOnly(args)
@@ -29,9 +29,12 @@ df_results_summary, detailed_results = multiple_replications(
 st.dataframe(df_results_summary)
 # st.dataframe(detailed_results)
 
-# animation_df = reshape_for_animations(event_log=detailed_results[detailed_results['rep']==1], 
-#                            every_x_time_units=10,
-#                            limit_duration=10*60*24)
+# animation_df = reshape_for_animations(
+#     event_log=detailed_results[detailed_results['rep']==1], 
+#     every_x_time_units=10,
+#     limit_duration=10*60*24,
+#     step_snapshot_max=50
+#     )
 
 # st.dataframe(
 #     animation_df
@@ -65,7 +68,8 @@ st.plotly_chart(
         plotly_width=1200,
         override_x_max=300,
         override_y_max=500,
-        wrap_queues_at=50,
+        wrap_queues_at=20,
+        step_snapshot_max=100,
         time_display_units="dhm",
         display_stage_labels=False,
         add_background_image="https://raw.githubusercontent.com/hsma-programme/Teaching_DES_Concepts_Streamlit/main/resources/Simplest%20Model%20Background%20Image%20-%20Horizontal%20Layout.drawio.png",
