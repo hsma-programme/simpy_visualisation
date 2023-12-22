@@ -1,6 +1,7 @@
 # Utility functions
+import simpy
 
-def trace(msg):
+def trace(msg, show=False):
     '''
     Utility function for printing a trace as the
     simulation model executes.
@@ -11,7 +12,7 @@ def trace(msg):
     msg: str
         string to print to screen.
     '''
-    if TRACE:
+    if show:
         print(msg)
 
 class CustomResource(simpy.Resource):

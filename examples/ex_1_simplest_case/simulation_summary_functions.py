@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 class SimulationSummary:
     '''
     End of run result processing logic of the simulation model
@@ -18,7 +19,7 @@ class SimulationSummary:
         self.args = model.args
         self.results = None
         self.patient_log = None
-        self.full_event_log = model.full_event_log
+        self.event_log = model.event_log
         self.utilisation_audit = model.utilisation_audit
 
     def get_mean_metric(self, metric, patients):
@@ -117,8 +118,8 @@ class SimulationSummary:
                         '01a_treatment_wait': self.get_mean_metric('wait_treat', self.model.patients),
                         '01b_treatment_util': self.get_resource_util('treat_duration', self.args.n_cubicles_1,self.model.patients),
                         '01c_treatment_wait_target_met': self.get_perc_wait_target_met('wait_treat', self.model.patients,target=wait_target_per_step),
-                        '08_total_time': self.get_mean_metric('total_time', self.model.patients),
-                        '09_throughput': self.get_throughput(self.model.patients)
+                        '02_total_time': self.get_mean_metric('total_time', self.model.patients),
+                        '03_throughput': self.get_throughput(self.model.patients)
                         }
             
       
@@ -149,12 +150,11 @@ class SimulationSummary:
         pd.DataFrame
         '''
         # append to results df
-        if ((self.full_event_log is None) or (self.utilisation_audit is None)):
+        if self.event_log is None:
             self.process_run_results()
 
         return {
             'patient': self.patient_log,
-            'event_log': self.full_event_log,
-            'utilisation_audit': self.utilisation_audit,
+            'event_log': self.event_log,
             'results_summary': self.results
         }
