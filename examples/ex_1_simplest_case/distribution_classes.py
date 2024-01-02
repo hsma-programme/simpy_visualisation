@@ -10,8 +10,6 @@ classes that allow easy control of random numbers.
 '''
 import math
 import numpy as np
-
-
 class Exponential:
     '''
     Convenience class for the exponential distribution.
@@ -96,4 +94,41 @@ class Lognormal:
         Sample from the normal distribution
         """
         return self.rng.lognormal(self.mu, self.sigma)
+
+class Normal:
+    '''
+    Convenience class for the normal distribution.
+    packages up distribution parameters, seed and random generator.
+    '''
+    def __init__(self, mean, sigma, random_seed=None):
+        '''
+        Constructor
+        
+        Params:
+        ------
+        mean: float
+            The mean of the normal distribution
+            
+        sigma: float
+            The stdev of the normal distribution
+        
+        random_seed: int, optional (default=None)
+            A random seed to reproduce samples.  If set to none then a unique
+            sample is created.
+        '''
+        self.rng = np.random.default_rng(seed=random_seed)
+        self.mean = mean
+        self.sigma = sigma
+        
+    def sample(self, size=None):
+        '''
+        Generate a sample from the normal distribution
+        
+        Params:
+        -------
+        size: int, optional (default=None)
+            the number of samples to return.  If size=None then a single
+            sample is returned.
+        '''
+        return self.rng.normal(self.mean, self.sigma, size=size)
 
