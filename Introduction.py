@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-from examples.ex_1_simplest_case.simulation_execution_functions import single_run, multiple_replications
-from examples.ex_1_simplest_case.model_classes import Scenario, TreatmentCentreModelSimpleNurseStepOnly
-from output_animation_functions import animate_activity_log, reshape_for_animations
 import gc
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")

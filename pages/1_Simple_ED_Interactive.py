@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from examples.ex_1_simplest_case.simulation_execution_functions import single_run, multiple_replications
 from examples.ex_1_simplest_case.model_classes import Scenario, TreatmentCentreModelSimpleNurseStepOnly
-from examples.ex_1_simplest_case.distribution_classes import Normal
+from examples.distribution_classes import Normal
 from output_animation_functions import animate_activity_log
 import gc
 

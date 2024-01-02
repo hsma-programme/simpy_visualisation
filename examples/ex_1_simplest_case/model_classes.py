@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import simpy
 
-from examples.ex_1_simplest_case.distribution_classes import Exponential, Lognormal
+from examples.distribution_classes import Exponential, Lognormal
 from examples.simulation_utility_functions import trace, CustomResource
 
 # Simulation model run settings

@@ -62,6 +62,7 @@ class SimulationSummary:
                          if getattr(p, metric) < target]))
         total = len(np.array([getattr(p, metric) for p in patients
                          if getattr(p, metric) > -np.inf]))
+                         
         return met/total
 
     def get_resource_util(self, metric, n_resources, patients):
