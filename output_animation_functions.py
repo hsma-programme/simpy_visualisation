@@ -186,7 +186,13 @@ def animate_activity_log(
         queues['x_final'] = queues['x_final'] + (wrap_queues_at * queues['row'] * gap_between_entities)
         queues['y_final'] = queues['y_final'] + (queues['row'] * gap_between_rows)
 
+    queues['x_final'] = np.where(queues['rank'] != step_snapshot_max + 1, 
+                                 queues['x_final'], 
+                                queues['x_final'] - (gap_between_entities * (wrap_queues_at/2)))
+   
+
     full_patient_df_plus_pos = pd.concat([queues, resource_use], ignore_index=True)
+    del resource_use, queues
 
     # full_patient_df_plus_pos['icon'] = '🙍'
 
