@@ -58,6 +58,7 @@ st.plotly_chart(
         event_log=detailed_results[detailed_results['rep']==1],
         event_position_df= event_position_df,
         scenario=args,
+        debug_mode=True,
         every_x_time_units=5,
         include_play_button=True,
         return_df_only=False,

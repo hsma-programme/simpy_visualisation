@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import gc
+import time
 
 def reshape_for_animations(event_log, 
                            every_x_time_units=10,
@@ -117,7 +118,8 @@ def animate_activity_log(
         time_display_units=None,
         setup_mode=False,
         frame_duration=400, #milliseconds
-        frame_transition_duration=600 #milliseconds
+        frame_transition_duration=600, #milliseconds
+        debug_mode=False
         ):
     """_summary_
 
@@ -153,10 +155,16 @@ def animate_activity_log(
     # Move the step of ensuring there's only a single model run involved to outside
     # of this function as it's not really its job. 
 
+    if debug_mode:
+        print(f'Animation function called at {time.strftime("%H:%M:%S", time.localtime())}')
+
     full_patient_df = reshape_for_animations(event_log, 
                                              every_x_time_units=every_x_time_units,
                                              limit_duration=limit_duration,
                                              step_snapshot_max=step_snapshot_max)
+    
+    if debug_mode:
+        print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
     
     # Order patients within event/minute/rep to determine their eventual position in the line
     full_patient_df['rank'] = full_patient_df.groupby(['event','minute'])['minute'] \
@@ -193,6 +201,9 @@ def animate_activity_log(
 
     full_patient_df_plus_pos = pd.concat([queues, resource_use], ignore_index=True)
     del resource_use, queues
+
+    if debug_mode:
+        print(f'Placement dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
 
     # full_patient_df_plus_pos['icon'] = '🙍'
 
@@ -400,5 +411,7 @@ def animate_activity_log(
     # Adjust speed of animation
     fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = frame_duration
     fig.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = frame_transition_duration
+    if debug_mode:
+        print(f'Output animation generation complete at {time.strftime("%H:%M:%S", time.localtime())}')
 
     return fig
