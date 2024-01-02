@@ -45,8 +45,8 @@ event_position_df = pd.DataFrame([
             {'event': 'arrival', 'x':  50, 'y': 300, 'label': "Arrival" },
             
             # Triage - minor and trauma                
-            {'event': 'treatment_wait_begins', 'x':  200, 'y': 170, 'label': "Waiting for Treatment"  },
-            {'event': 'treatment_begins', 'x':  200, 'y': 110, 'resource':'n_cubicles_1', 'label': "Being Treated" },
+            {'event': 'treatment_wait_begins', 'x':  205, 'y': 170, 'label': "Waiting for Treatment"  },
+            {'event': 'treatment_begins', 'x':  205, 'y': 110, 'resource':'n_cubicles_1', 'label': "Being Treated" },
 
             {'event': 'exit', 'x':  270, 'y': 70, 'label': "Exit"}
         
@@ -63,14 +63,14 @@ st.plotly_chart(
         include_play_button=True,
         return_df_only=False,
         icon_and_text_size=20,
-        gap_between_entities=5,
+        gap_between_entities=6,
         gap_between_rows=15,
         plotly_height=700,
         plotly_width=1200,
         override_x_max=300,
         override_y_max=500,
-        wrap_queues_at=20,
-        step_snapshot_max=100,
+        wrap_queues_at=25,
+        step_snapshot_max=125,
         time_display_units="dhm",
         display_stage_labels=False,
         add_background_image="https://raw.githubusercontent.com/hsma-programme/Teaching_DES_Concepts_Streamlit/main/resources/Simplest%20Model%20Background%20Image%20-%20Horizontal%20Layout.drawio.png",
