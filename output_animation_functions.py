@@ -183,7 +183,7 @@ def animate_activity_log(
     # from the starting row
     if wrap_queues_at is not None:
         queues['row'] = np.floor((queues['rank'] - 1) / (wrap_queues_at))
-        queues['x_final'] = queues['x_final'] + (wrap_queues_at * queues['row'] * gap_between_entities)
+        queues['x_final'] = queues['x_final'] + (wrap_queues_at * queues['row'] * gap_between_entities) + gap_between_entities
         queues['y_final'] = queues['y_final'] + (queues['row'] * gap_between_rows)
 
     queues['x_final'] = np.where(queues['rank'] != step_snapshot_max + 1, 
@@ -230,7 +230,7 @@ def animate_activity_log(
     
     if 'additional' in full_patient_df_plus_pos.columns:
         exceeded_snapshot_limit = full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].notna()].copy()
-        exceeded_snapshot_limit['icon'] = exceeded_snapshot_limit['additional']
+        exceeded_snapshot_limit['icon'] = exceeded_snapshot_limit['additional'].apply(lambda x: f"+ {int(x):5d} more")
         full_patient_df_plus_pos = pd.concat(
             [
                 full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].isna()], exceeded_snapshot_limit
