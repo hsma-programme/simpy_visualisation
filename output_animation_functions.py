@@ -1,15 +1,18 @@
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
-import numpy as np
 import datetime as dt
 import gc
 import time
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+
+
 
 def reshape_for_animations(event_log, 
                            every_x_time_units=10,
                            limit_duration=10*60*24,
-                           step_snapshot_max=50):
+                           step_snapshot_max=50,
+                           debug_mode=False):
     patient_dfs = []
 
     pivoted_log = event_log.pivot_table(values="time",
@@ -17,7 +20,6 @@ def reshape_for_animations(event_log,
                                         columns="event").reset_index()
     
     #TODO: Add in behaviour for if limit_duration is None
-
 
     ################################################################################
     # Iterate through every matching minute
@@ -35,8 +37,11 @@ def reshape_for_animations(event_log,
         # Think we maybe need a pathway order and pathway precedence column
         # But what about shared elements of each pathway?
         if minute % every_x_time_units == 0:
-
             try:
+                # Work out which patients - if any - were present in the simulation at the current time
+                # They will have arrived at or before the minute in question, and they will depart at
+                # or after the minute in question, or never depart during our model run
+                # (which can happen if they arrive towards the end, or there is a bottleneck)
                 current_patients_in_moment = pivoted_log[(pivoted_log['arrival'] <= minute) & 
                             (
                                 (pivoted_log['depart'] >= minute) |
@@ -45,42 +50,76 @@ def reshape_for_animations(event_log,
             except KeyError:
                 current_patients_in_moment = None
 
+            # If we do have any patients, they will have been passed as a list
+            # so now just filter our event log down to the events these patients have been
+            # involved in
             if current_patients_in_moment is not None:
-                patient_minute_df = event_log[event_log['patient']
-                                                        .isin(current_patients_in_moment)]
                 # Grab just those clients from the filtered log (the unpivoted version)
-                # Each person can only be in a single place at once, so filter out any events
-                # that have taken place after the minute
+                # Filter out any events that have taken place after the minute we are interested in
+
+                patient_minute_df = event_log[
+                    (event_log['patient'].isin(current_patients_in_moment)) &
+                    (event_log['time'] <= minute)
+                    ]
+                # Each person can only be in a single place at once, and we have filtered out
+                # events that occurred later than the current minute, so filter out any events
                 # then just take the latest event that has taken place for each client
-                most_recent_events_minute_ungrouped = patient_minute_df[patient_minute_df['time'] <= minute].reset_index(drop=False) \
+                most_recent_events_minute_ungrouped = patient_minute_df \
+                    .reset_index(drop=False) \
                     .sort_values(['time', 'index'], ascending=True) \
                     .groupby(['patient']) \
                     .tail(1) 
-                
-                most_recent_events_minute_ungrouped['rank'] = most_recent_events_minute_ungrouped.groupby(['event'])['index'] \
+
+                # Now rank patients within a given event by the order in which they turned up to that event
+                most_recent_events_minute_ungrouped['rank'] = most_recent_events_minute_ungrouped \
+                              .groupby(['event'])['index'] \
                               .rank(method='first')
+
                 
-                most_recent_events_minute_ungrouped['max'] = most_recent_events_minute_ungrouped.groupby('event')['rank'].transform('max')
+                most_recent_events_minute_ungrouped['max'] = most_recent_events_minute_ungrouped.groupby('event')['rank'] \
+                                                             .transform('max')
 
-                most_recent_events_minute_ungrouped = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] <= (step_snapshot_max + 1)].copy()
+                most_recent_events_minute_ungrouped = most_recent_events_minute_ungrouped[
+                    most_recent_events_minute_ungrouped['rank'] <= (step_snapshot_max + 1)
+                    ].copy()
 
-                maximum_row_per_event_df = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] == float(step_snapshot_max + 1)].copy()
+                maximum_row_per_event_df = most_recent_events_minute_ungrouped[
+                    most_recent_events_minute_ungrouped['rank'] == float(step_snapshot_max + 1)
+                    ].copy()
+
                 maximum_row_per_event_df['additional'] = ''
+
                 if len(maximum_row_per_event_df) > 0:
                     maximum_row_per_event_df['additional'] = maximum_row_per_event_df['max'] - maximum_row_per_event_df['rank']
                     most_recent_events_minute_ungrouped = pd.concat(
                         [most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] != float(step_snapshot_max + 1)],
-                        maximum_row_per_event_df]
+                        maximum_row_per_event_df],
+                        ignore_index=True
                     )
 
-                patient_dfs.append(most_recent_events_minute_ungrouped.assign(minute=minute).drop(columns='max'))
+                # Add this dataframe to our list of dataframes, and then return to the beginning
+                # of the loop and do this for the next minute of interest until we reach the end
+                # of the period of interest
+                patient_dfs.append(most_recent_events_minute_ungrouped
+                                   .drop(columns='max')
+                                   .assign(minute=minute))
+    if debug_mode:
+        print(f'Iteration through minute-by-minute logs complete {time.strftime("%H:%M:%S", time.localtime())}')
 
     full_patient_df = (pd.concat(patient_dfs, ignore_index=True)).reset_index(drop=True)
+
+    if debug_mode:
+        print(f'Snapshot df concatenation complete at {time.strftime("%H:%M:%S", time.localtime())}')
 
     del patient_dfs
     gc.collect()
 
     # Add a final exit step for each client
+    # This is helpful as it ensures all patients are visually seen to exit rather than 
+    # just disappearing after their final step
+    # It makes it easier to track the split of people going on to an optional step when
+    # this step is at the end of the pathway
+    # TODO: Fix so that everyone doesn't automatically exit at the end of the simulation run
     final_step = full_patient_df.sort_values(["patient", "minute"], ascending=True) \
                  .groupby(["patient"]) \
                  .tail(1)
@@ -156,12 +195,14 @@ def animate_activity_log(
     # of this function as it's not really its job. 
 
     if debug_mode:
+        start_time_function = time.perf_counter()
         print(f'Animation function called at {time.strftime("%H:%M:%S", time.localtime())}')
 
     full_patient_df = reshape_for_animations(event_log, 
                                              every_x_time_units=every_x_time_units,
                                              limit_duration=limit_duration,
-                                             step_snapshot_max=step_snapshot_max)
+                                             step_snapshot_max=step_snapshot_max,
+                                             debug_mode=debug_mode)
     
     if debug_mode:
         print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
@@ -412,6 +453,8 @@ def animate_activity_log(
     fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = frame_duration
     fig.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = frame_transition_duration
     if debug_mode:
+        end_time_function = time.perf_counter()
         print(f'Output animation generation complete at {time.strftime("%H:%M:%S", time.localtime())}')
+        print(f'Total Time Elapsed: {(end_time_function - start_time_function):.2f} seconds')
 
     return fig
