@@ -61,14 +61,14 @@ def reshape_for_animations(event_log,
                 
                 most_recent_events_minute_ungrouped['max'] = most_recent_events_minute_ungrouped.groupby('event')['rank'].transform('max')
 
-                most_recent_events_minute_ungrouped = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] <= step_snapshot_max].copy()
+                most_recent_events_minute_ungrouped = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] <= (step_snapshot_max + 1)].copy()
 
-                maximum_row_per_event_df = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] == float(step_snapshot_max)].copy()
+                maximum_row_per_event_df = most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] == float(step_snapshot_max + 1)].copy()
                 maximum_row_per_event_df['additional'] = ''
                 if len(maximum_row_per_event_df) > 0:
                     maximum_row_per_event_df['additional'] = maximum_row_per_event_df['max'] - maximum_row_per_event_df['rank']
                     most_recent_events_minute_ungrouped = pd.concat(
-                        [most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] != float(step_snapshot_max)],
+                        [most_recent_events_minute_ungrouped[most_recent_events_minute_ungrouped['rank'] != float(step_snapshot_max + 1)],
                         maximum_row_per_event_df]
                     )
 
@@ -167,21 +167,23 @@ def animate_activity_log(
 
     # Determine the position for any resource use steps
     resource_use = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type'] == "resource_use"].copy()
-    resource_use['y_final'] =  resource_use['y']
-    resource_use['x_final'] = resource_use['x'] - resource_use['resource_id']*gap_between_resources
+    # resource_use['y_final'] =  resource_use['y']
+    resource_use = resource_use.rename(columns={"y": "y_final"})
+    resource_use['x_final'] = resource_use['x'] - resource_use['resource_id'] * gap_between_resources
 
     
     # Determine the position for any queuing steps
     queues = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type']=='queue'].copy()
-    queues['y_final'] =  queues['y']
-    queues['x_final'] = queues['x'] - queues['rank']*gap_between_entities
+    # queues['y_final'] =  queues['y']
+    queues = queues.rename(columns={"y": "y_final"})
+    queues['x_final'] = queues['x'] - queues['rank'] * gap_between_entities
 
     # If we want people to wrap at a certain queue length, do this here
     # They'll wrap at the defined point and then the queue will start expanding upwards
     # from the starting row
     if wrap_queues_at is not None:
-        queues['row'] = np.floor((queues['rank']) / (wrap_queues_at+1))
-        queues['x_final'] = queues['x_final'] + (wrap_queues_at*queues['row']*gap_between_entities)
+        queues['row'] = np.floor((queues['rank'] - 1) / (wrap_queues_at))
+        queues['x_final'] = queues['x_final'] + (wrap_queues_at * queues['row'] * gap_between_entities)
         queues['y_final'] = queues['y_final'] + (queues['row'] * gap_between_rows)
 
     full_patient_df_plus_pos = pd.concat([queues, resource_use], ignore_index=True)
