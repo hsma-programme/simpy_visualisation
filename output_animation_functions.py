@@ -172,7 +172,7 @@ def animate_activity_log(
 
     
     # Determine the position for any queuing steps
-    queues = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type']=='queue']
+    queues = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type']=='queue'].copy()
     queues['y_final'] =  queues['y']
     queues['x_final'] = queues['x'] - queues['rank']*gap_between_entities
 
@@ -221,7 +221,7 @@ def animate_activity_log(
         on="patient")
     
     if 'additional' in full_patient_df_plus_pos.columns:
-        exceeded_snapshot_limit = full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].notna()]
+        exceeded_snapshot_limit = full_patient_df_plus_pos[full_patient_df_plus_pos['additional'].notna()].copy()
         exceeded_snapshot_limit['icon'] = exceeded_snapshot_limit['additional']
         full_patient_df_plus_pos = pd.concat(
             [
