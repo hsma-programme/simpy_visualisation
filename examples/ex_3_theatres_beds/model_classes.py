@@ -435,7 +435,9 @@ class PrimaryPatient:
                     'resource_id': admit[req].id_attribute}
                 )
 
-                self.primary_los = self.args.los_delay_dist.sample()
+                # NOTE: SR TWEAKED THIS LINE COMPARED TO ORIGINAL MODEL
+                # DOUBLE CHECK INTENDED ACTION HAS BEEN CORRECTLY UNDERSTOOD
+                self.primary_los = self.primary_los + self.args.los_delay_dist.sample()
                 yield self.env.timeout(self.primary_los)
                 self.lost_slots_bool = False
                 self.delayed_los_bool = True
@@ -538,7 +540,7 @@ class PrimaryPatient:
                     'time': self.env.now,
                     'resource_id': admit[req].id_attribute}
                     )
-                self.primary_los = self.primary_los
+                # self.primary_los = self.primary_los
                 yield self.env.timeout(self.primary_los)
                 self.lost_slots_bool = False
                 self.delayed_los_bool = False
@@ -691,8 +693,9 @@ class RevisionPatient:
                         'time': self.env.now,
                         'resource_id': admit[req].id_attribute}
                     )
-                
-                    self.revision_los = self.args.los_delay_dist.sample()
+                    # NOTE: SR TWEAKED THIS LINE COMPARED TO ORIGINAL MODEL
+                    # DOUBLE CHECK INTENDED ACTION HAS BEEN CORRECTLY UNDERSTOOD
+                    self.revision_los = self.revision_los + self.args.los_delay_dist.sample()
                     yield self.env.timeout(self.revision_los)
                     self.lost_slots_bool = False
                     self.delayed_los_bool = True
