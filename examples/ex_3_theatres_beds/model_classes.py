@@ -453,6 +453,14 @@ class PrimaryPatient:
                     'time': self.env.now,
                     'resource_id': admit[req].id_attribute}
                 )
+
+                self.event_log.append(
+                    {'patient': self.id,
+                    'pathway': 'Primary',
+                    'event_type': 'queue',
+                    'event': 'discharged_after_stay',
+                    'time': self.env.now}
+                )
                 
                 # Resource is no longer in use, so put it back in the store
                 self.args.beds.put(admit[req]) 
@@ -463,7 +471,7 @@ class PrimaryPatient:
                     'pathway': 'Primary',
                     'event_type': 'arrival_departure',
                     'event': 'depart',
-                    'time': self.env.now}
+                    'time': self.env.now+1}
                 )
 
             else:
@@ -477,8 +485,8 @@ class PrimaryPatient:
                 self.event_log.append(
                     {'patient': self.id,
                     'pathway': 'Primary',
-                    'event': 'depart',
-                    'event_type': 'arrival_departure',
+                    'event': 'no_bed_available',
+                    'event_type': 'queue',
                     'time': self.env.now}
                 )
                 trace(f'primary patient {self.id} {self.primary_label}'
@@ -491,6 +499,13 @@ class PrimaryPatient:
                 self.depart = self.env.now
                 trace(f'primary patient {self.id} {self.primary_label}'
                         f'recorded {self.lost_slots_bool}')
+                self.event_log.append(
+                    {'patient': self.id,
+                    'pathway': 'Primary',
+                    'event': 'depart',
+                    'event_type': 'arrival_departure',
+                    'time': self.env.now+1}
+                )
 
         #Pathway for no delayed los
         else:
@@ -541,6 +556,13 @@ class PrimaryPatient:
                     'time': self.env.now,
                     'resource_id': admit[req].id_attribute}
                     )
+                self.event_log.append(
+                    {'patient': self.id,
+                    'pathway': 'Primary',
+                    'event_type': 'queue',
+                    'event': 'discharged_after_stay',
+                    'time': self.env.now}
+                )
                 # Resource is no longer in use, so put it back in the store
                 self.args.beds.put(admit[req]) 
 
@@ -549,7 +571,7 @@ class PrimaryPatient:
                     'pathway': 'Primary',
                     'event': 'depart',
                     'event_type': 'arrival_departure',
-                    'time': self.env.now}
+                    'time': self.env.now+1}
                 )
                 
             else:
@@ -557,6 +579,14 @@ class PrimaryPatient:
                 # Put the bed back in to the store
                 req = yield req
                 self.args.beds.put(req) 
+
+                self.event_log.append(
+                    {'patient': self.id,
+                    'pathway': 'Primary',
+                    'event': 'no_bed_available',
+                    'event_type': 'queue',
+                    'time': self.env.now}
+                )
 
                 trace(f'primary patient {self.id} {self.primary_label}'
                         f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
@@ -568,12 +598,13 @@ class PrimaryPatient:
                 self.depart = self.env.now
                 trace(f'primary patient {self.id} {self.primary_label}' 
                         f'recorded {self.lost_slots_bool}')
+                
                 self.event_log.append(
                     {'patient': self.id,
                     'pathway': 'Primary',
                     'event': 'depart',
                     'event_type': 'arrival_departure',
-                    'time': self.env.now}
+                    'time': self.env.now+1}
                 )
     
 class RevisionPatient:
@@ -679,6 +710,14 @@ class RevisionPatient:
                         'time': self.env.now,
                         'resource_id': admit[req].id_attribute}
                     )
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'queue',
+                        'event': 'discharged_after_stay',
+                        'time': self.env.now}
+                    )
                     # Resource is no longer in use, so put it back in the store
                     self.args.beds.put(admit[req]) 
 
@@ -687,7 +726,7 @@ class RevisionPatient:
                         'pathway': 'Revision',
                         'event': 'depart',
                         'event_type': 'arrival_departure',
-                        'time': self.env.now}
+                        'time': self.env.now+1}
                     )
 
                 else:
@@ -696,7 +735,15 @@ class RevisionPatient:
                     # Put the bed back in to the store
                     req = yield req
                     self.args.beds.put(req) 
-                    
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'no_bed_available',
+                        'event_type': 'queue',
+                        'time': self.env.now}
+                    )
+
                     self.no_bed_cancellation = self.env.now - self.arrival
                     trace(f'revision patient {self.id}'
                           f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
@@ -708,12 +755,13 @@ class RevisionPatient:
                     self.depart = self.env.now
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'recorded {self.lost_slots_bool}')
+                    
                     self.event_log.append(
                         {'patient': self.id,
                         'pathway': 'Revision',
                         'event': 'depart',
                         'event_type': 'arrival_departure',
-                        'time': self.env.now}
+                        'time': self.env.now+1}
                     )
 
         #no need for delayed discharge            
@@ -755,6 +803,13 @@ class RevisionPatient:
                         'time': self.env.now,
                         'resource_id': admit[req].id_attribute}
                         )
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'queue',
+                        'event': 'discharged_after_stay',
+                        'time': self.env.now}
+                    )
                     # Resource is no longer in use, so put it back in the store
                     self.args.beds.put(admit[req]) 
 
@@ -763,13 +818,21 @@ class RevisionPatient:
                         'pathway': 'Revision',
                         'event': 'depart',
                         'event_type': 'arrival_departure',
-                        'time': self.env.now}
+                        'time': self.env.now+1}
                     )
 
                 else:
                     # Put the bed back in to the store
                     req = yield req
                     self.args.beds.put(req) 
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'no_bed_available',
+                        'event_type': 'queue',
+                        'time': self.env.now}
+                    )
 
                     #patient had to leave as no beds were available on ward
                     trace(f'revision patient {self.id} {self.revision_label}'
@@ -782,12 +845,13 @@ class RevisionPatient:
                     self.depart = self.env.now 
                     trace(f'revision patient {self.id} {self.revision_label}' 
                           f'recorded {self.lost_slots_bool}')
+                    
                     self.event_log.append(
                         {'patient': self.id,
                         'pathway': 'Revision',
                         'event': 'depart',
                         'event_type': 'arrival_departure',
-                        'time': self.env.now}
+                        'time': self.env.now+1}
                     )
    
 

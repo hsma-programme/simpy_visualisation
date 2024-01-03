@@ -900,17 +900,22 @@ class TreatmentCentreModel:
 
         resources_list = [
             {'resource_name': 'registration_clerks',
-                'resource_object': self.args.registration},
-            {'resource_name': 'triage_bays', 'resource_object': self.args.triage},
+             'resource_object': self.args.registration},
+            
+            {'resource_name': 'triage_bays', 
+             'resource_object': self.args.triage},
 
             {'resource_name': 'examination_bays',
-                'resource_object': self.args.exam},
+             'resource_object': self.args.exam},
+            
             {'resource_name': 'non_trauma_treatment_cubicle_type_1',
-                'resource_object': self.args.cubicle_1},
+             'resource_object': self.args.cubicle_1},
 
-            {'resource_name': 'trauma_bays', 'resource_object': self.args.trauma},
+            {'resource_name': 'trauma_bays', 
+             'resource_object': self.args.trauma},
+            
             {'resource_name': 'trauma_treatmentcubicle_type_2',
-                'resource_object': self.args.cubicle_2}
+             'resource_object': self.args.cubicle_2}
         ]
 
         self.env.process(

@@ -153,7 +153,6 @@ if button_run_pressed:
                 debug_mode=True,
                 every_x_time_units=5,
                 include_play_button=True,
-                return_df_only=False,
                 gap_between_entities=10,
                 gap_between_rows=15,
                 plotly_height=900,

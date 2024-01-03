@@ -83,7 +83,6 @@ if button_run_pressed:
                 debug_mode=True,
                 every_x_time_units=5,
                 include_play_button=True,
-                return_df_only=False,
                 icon_and_text_size=20,
                 gap_between_entities=6,
                 gap_between_rows=15,

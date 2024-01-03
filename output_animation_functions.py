@@ -6,8 +6,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-
-
 def reshape_for_animations(event_log, 
                            every_x_time_units=10,
                            limit_duration=10*60*24,
@@ -134,36 +132,21 @@ def reshape_for_animations(event_log,
 
     return full_patient_df.sort_values(["minute", "event"]).reset_index(drop=True)
 
-def animate_activity_log(
-        event_log,
+def generate_animation_df(
+        full_patient_df,
         event_position_df,
-        scenario,
-        every_x_time_units=10,
         wrap_queues_at=20,
         step_snapshot_max=50,
-        limit_duration=10*60*24,
-        plotly_height=900,
-        plotly_width=None,
-        include_play_button=True,
-        return_df_only=False,
-        add_background_image=None,
-        display_stage_labels=True,
-        icon_and_text_size=24,
         gap_between_entities=10,
-        gap_between_rows=30,
         gap_between_resources=10,
-        override_x_max=None,
-        override_y_max=None,
-        time_display_units=None,
-        setup_mode=False,
-        frame_duration=400, #milliseconds
-        frame_transition_duration=600, #milliseconds
+        gap_between_rows=30,
         debug_mode=False
-        ):
+):
     """_summary_
 
     Args:
         full_patient_df (pd.Dataframe): 
+            output of reshape_for_animation()
         
         event_position_dicts (pd.Dataframe): 
             dataframe with three cols - event, x and y
@@ -188,25 +171,9 @@ def animate_activity_log(
 
     # Filter to only a single replication
 
-    # TODO: Remove this from this function, and instead write a test
-    # to ensure that no patient ID appears in multiple places at a single minute
+    # TODO: Write a test  to ensure that no patient ID appears in multiple places at a single minute
     # and return an error if it does so
-    # Move the step of ensuring there's only a single model run involved to outside
-    # of this function as it's not really its job. 
 
-    if debug_mode:
-        start_time_function = time.perf_counter()
-        print(f'Animation function called at {time.strftime("%H:%M:%S", time.localtime())}')
-
-    full_patient_df = reshape_for_animations(event_log, 
-                                             every_x_time_units=every_x_time_units,
-                                             limit_duration=limit_duration,
-                                             step_snapshot_max=step_snapshot_max,
-                                             debug_mode=debug_mode)
-    
-    if debug_mode:
-        print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
-    
     # Order patients within event/minute/rep to determine their eventual position in the line
     full_patient_df['rank'] = full_patient_df.groupby(['event','minute'])['minute'] \
                               .rank(method='first')
@@ -290,8 +257,36 @@ def animate_activity_log(
             ignore_index=True
         )
 
-    if return_df_only:
-        return full_patient_df_plus_pos
+    return full_patient_df_plus_pos
+
+
+
+def generate_animation(
+        full_patient_df_plus_pos,
+        event_position_df,
+        scenario,
+        plotly_height=900,
+        plotly_width=None,
+        include_play_button=True,
+        add_background_image=None,
+        display_stage_labels=True,
+        icon_and_text_size=24,
+        override_x_max=None,
+        override_y_max=None,
+        time_display_units=None,
+        start_date=None,
+        gap_between_resources=10,
+        setup_mode=False,
+        frame_duration=400, #milliseconds
+        frame_transition_duration=600, #milliseconds
+        debug_mode=False
+):
+    """_summary_
+
+    Args:
+        full_patient_df_plus_post (pd.Dataframe): 
+            generate_animation_df()
+    """
 
     if override_x_max is not None:
         x_max = override_x_max
@@ -320,6 +315,18 @@ def animate_activity_log(
             )
         full_patient_df_plus_pos['minute'] = full_patient_df_plus_pos['minute'].apply(
             lambda x: dt.datetime.strftime(x, '%Y-%m-%d %H:%M')
+            )
+    if time_display_units == "d":
+        if start_date is None:
+            full_patient_df_plus_pos['minute'] = dt.date.today() + pd.DateOffset(days=165) +  pd.TimedeltaIndex(full_patient_df_plus_pos['minute'], unit='d')
+        else:
+            full_patient_df_plus_pos['minute'] = dt.datetime.strptime(start_date, "%Y-%m-%d") +  pd.TimedeltaIndex(full_patient_df_plus_pos['minute'], unit='d')
+
+        full_patient_df_plus_pos['minute_display'] = full_patient_df_plus_pos['minute'].apply(
+            lambda x: dt.datetime.strftime(x, '%A %d %B %Y')
+            )
+        full_patient_df_plus_pos['minute'] = full_patient_df_plus_pos['minute'].apply(
+            lambda x: dt.datetime.strftime(x, '%Y-%m-%d')
             )
     else:
         full_patient_df_plus_pos['minute_display'] = full_patient_df_plus_pos['minute']
@@ -380,7 +387,7 @@ def animate_activity_log(
     events_with_resources['resource_count'] = events_with_resources['resource'].apply(lambda x: getattr(scenario, x))
 
     events_with_resources = events_with_resources.join(events_with_resources.apply(
-        lambda r: pd.Series({'x_final': [r['x']-(10*(i+1)) for i in range(r['resource_count'])]}), axis=1).explode('x_final'),
+        lambda r: pd.Series({'x_final': [r['x']-(gap_between_resources*(i+1)) for i in range(r['resource_count'])]}), axis=1).explode('x_final'),
         how='right')
 
     # This just adds an additional scatter trace that creates large dots
@@ -453,8 +460,83 @@ def animate_activity_log(
     fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = frame_duration
     fig.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = frame_transition_duration
     if debug_mode:
-        end_time_function = time.perf_counter()
         print(f'Output animation generation complete at {time.strftime("%H:%M:%S", time.localtime())}')
-        print(f'Total Time Elapsed: {(end_time_function - start_time_function):.2f} seconds')
 
     return fig
+
+def animate_activity_log(
+        event_log,
+        event_position_df,
+        scenario,
+        every_x_time_units=10,
+        wrap_queues_at=20,
+        step_snapshot_max=50,
+        limit_duration=10*60*24,
+        plotly_height=900,
+        plotly_width=None,
+        include_play_button=True,
+        add_background_image=None,
+        display_stage_labels=True,
+        icon_and_text_size=24,
+        gap_between_entities=10,
+        gap_between_rows=30,
+        gap_between_resources=10,
+        override_x_max=None,
+        override_y_max=None,
+        time_display_units=None,
+        setup_mode=False,
+        frame_duration=400, #milliseconds
+        frame_transition_duration=600, #milliseconds
+        debug_mode=False
+        ):
+    
+    if debug_mode:
+        start_time_function = time.perf_counter()
+        print(f'Animation function called at {time.strftime("%H:%M:%S", time.localtime())}')
+
+    full_patient_df = reshape_for_animations(event_log, 
+                                             every_x_time_units=every_x_time_units,
+                                             limit_duration=limit_duration,
+                                             step_snapshot_max=step_snapshot_max,
+                                             debug_mode=debug_mode)
+    
+    if debug_mode:
+        print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
+    
+
+
+    full_patient_df_plus_pos = generate_animation_df(
+                                full_patient_df=full_patient_df,
+                                event_position_df=event_position_df,
+                                wrap_queues_at=wrap_queues_at,
+                                step_snapshot_max=step_snapshot_max,
+                                gap_between_entities=gap_between_entities,
+                                gap_between_resources=gap_between_resources,
+                                gap_between_rows=gap_between_rows,
+                                debug_mode=debug_mode
+                        )
+    
+    animation = generate_animation(
+        full_patient_df_plus_pos=full_patient_df_plus_pos,
+        event_position_df=event_position_df,
+        scenario=scenario,
+        plotly_height=plotly_height,
+        plotly_width=plotly_width,
+        include_play_button=include_play_button,
+        add_background_image=add_background_image,
+        display_stage_labels=display_stage_labels,
+        icon_and_text_size=icon_and_text_size,
+        override_x_max=override_x_max,
+        override_y_max=override_y_max,
+        time_display_units=time_display_units,
+        setup_mode=setup_mode,
+        frame_duration=frame_duration, #milliseconds
+        frame_transition_duration=frame_transition_duration, #milliseconds
+        debug_mode=debug_mode
+    )
+
+    if debug_mode:
+        end_time_function = time.perf_counter()
+        print(f'Total Time Elapsed: {(end_time_function - start_time_function):.2f} seconds')
+
+    return animation
