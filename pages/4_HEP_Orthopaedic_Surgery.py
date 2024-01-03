@@ -115,16 +115,16 @@ if button_run_pressed:
                 
                 # Triage - minor and trauma                
                 {'event': 'enter_queue_for_bed', 
-                 'x':  200, 'y': 400, 'label': "Waiting for<br>Availability of<br>Bed to be Confirmed<br>Before Surgery" },
+                 'x':  200, 'y': 450, 'label': "Waiting for<br>Availability of<br>Bed to be Confirmed<br>Before Surgery" },
 
                 {'event': 'no_bed_available', 
-                 'x':  400, 'y': 400, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
+                 'x':  600, 'y': 450, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
 
                 {'event': 'post_surgery_stay_begins', 
                  'x':  650, 'y': 200, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
 
                 {'event': 'discharged_after_stay', 
-                 'x':  670, 'y': 75, 'label': "Discharged from Hospital<br>After Recovery"}
+                 'x':  670, 'y': 50, 'label': "Discharged from Hospital<br>After Recovery"}
                 # {'event': 'exit', 
                 #  'x':  670, 'y': 100, 'label': "Exit"}
 
@@ -170,6 +170,28 @@ if button_run_pressed:
             return f"CHECK<br>{row['icon']}"
 
     full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(set_icon, axis=1))
+
+    # TODO: Check why this doesn't seem to be working quite right for the 'discharged after stay'
+    # step. e.g. 194Primary is discharged on 28th July showing a LOS of 1 but prior to this shows a LOS of 9.
+    def add_los_to_icon(row):
+        if row["event"] == "post_surgery_stay_begins":
+            return f'{row["icon"]}<br>{row["minute"]-row["time"]:.0f}' 
+        elif row["event"] == "discharged_after_stay":
+            return f'{row["icon"]}<br>{row["los"]:.0f}' 
+        else:
+            return row["icon"] 
+        
+    full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1))
+
+    
+    def indicate_delay_via_icon(row):
+        if row["delayed discharge"] == True:
+            return f'{row["icon"]}<br>*'
+        else:
+            return f'{row["icon"]}<br> '
+
+    full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(indicate_delay_via_icon, axis=1))
+
 
     st.plotly_chart(
         generate_animation(
