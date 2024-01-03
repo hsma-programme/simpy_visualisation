@@ -399,7 +399,8 @@ class PrimaryPatient:
         #Patients who have a delayed discharge follow this pathway
         if self.need_for_los_delay:
             
-            #request a bed on ward - if none available within 0.5-1 day, patient has surgery cancelled
+            #request a bed on ward - if none available within 0.5-1 day, 
+            # patient has surgery cancelled
             req = self.args.beds.get()
                 
             self.event_log.append(
@@ -408,7 +409,7 @@ class PrimaryPatient:
                 'event_type': 'queue',
                 'event': 'enter_queue_for_bed',
                 'time': self.env.now}
-        )
+            )
 
             admission = random.uniform(0.5,1)
             admit = yield req | self.env.timeout(admission)
@@ -416,14 +417,14 @@ class PrimaryPatient:
             # Logic for if wait for bed is less than threshold (so patient goes ahead
             # and has surgery, and is then put into bed)
             if req in admit:
-                #record queue time for primary patients -- if > admission, 
+                #record queue time for primary patients -- if > admission,
                 # this patient will leave the system and the slot is lost
-                
+
                 self.queue_beds = self.env.now - self.arrival
-                trace(f'primary patient {self.id} {self.primary_label}' 
+                trace(f'primary patient {self.id} {self.primary_label}'
                         f'has been allocated a bed at {self.env.now:.3f}' 
                         f'and queued for {self.queue_beds:.3f}')
-                
+
                 self.event_log.append(
                     {'patient': self.id,
                     'pathway': 'Primary',
@@ -432,9 +433,8 @@ class PrimaryPatient:
                     'time': self.env.now,
                     # Syntax from https://stackoverflow.com/questions/74842300/how-to-get-the-item-name-and-not-its-address-when-requesting-with-a-condition-e
                     'resource_id': admit[req].id_attribute}
-                    )
-                
-                
+                )
+
                 self.primary_los = self.args.los_delay_dist.sample()
                 yield self.env.timeout(self.primary_los)
                 self.lost_slots_bool = False
@@ -452,7 +452,7 @@ class PrimaryPatient:
                     'event': 'post_surgery_stay_ends',
                     'time': self.env.now,
                     'resource_id': admit[req].id_attribute}
-                    )
+                )
                 
                 # Resource is no longer in use, so put it back in the store
                 self.args.beds.put(admit[req]) 
@@ -464,10 +464,15 @@ class PrimaryPatient:
                     'event_type': 'arrival_departure',
                     'event': 'depart',
                     'time': self.env.now}
-                    )
+                )
 
             else:
                 #patient had to leave as no beds were available on ward
+                
+                # Put the bed back in to the store
+                req = yield req
+                self.args.beds.put(req) 
+
                 self.no_bed_cancellation = self.env.now - self.arrival
                 self.event_log.append(
                     {'patient': self.id,
@@ -484,9 +489,8 @@ class PrimaryPatient:
                 self.lost_slots_bool = True
                 self.delayed_los_bool = False
                 self.depart = self.env.now
-                trace(f'primary patient {self.id} {self.primary_label}' 
+                trace(f'primary patient {self.id} {self.primary_label}'
                         f'recorded {self.lost_slots_bool}')
-                
 
         #Pathway for no delayed los
         else:
@@ -550,6 +554,10 @@ class PrimaryPatient:
                 
             else:
                 #patient had to leave as no beds were available on ward
+                # Put the bed back in to the store
+                req = yield req
+                self.args.beds.put(req) 
+
                 trace(f'primary patient {self.id} {self.primary_label}'
                         f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
                 self.queue_beds = self.env.now - self.arrival
@@ -684,6 +692,11 @@ class RevisionPatient:
 
                 else:
                     #patient had to leave as no beds were available on ward
+                    
+                    # Put the bed back in to the store
+                    req = yield req
+                    self.args.beds.put(req) 
+                    
                     self.no_bed_cancellation = self.env.now - self.arrival
                     trace(f'revision patient {self.id}'
                           f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
@@ -754,6 +767,10 @@ class RevisionPatient:
                     )
 
                 else:
+                    # Put the bed back in to the store
+                    req = yield req
+                    self.args.beds.put(req) 
+
                     #patient had to leave as no beds were available on ward
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'had surgery cancelled after {self.no_bed_cancellation:.3f}')

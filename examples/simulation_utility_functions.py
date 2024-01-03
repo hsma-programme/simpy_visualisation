@@ -1,7 +1,9 @@
 # Utility functions
 import simpy
 
-def trace(msg, show=False):
+TRACE = False
+
+def trace(msg, show=TRACE):
     '''
     Utility function for printing a trace as the
     simulation model executes.
