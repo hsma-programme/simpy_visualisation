@@ -209,3 +209,39 @@ class Uniform():
             sample is returned.
         '''
         return self.rand.uniform(low=self.low, high=self.high, size=size)
+# Gamma and empirical from https://github.com/AliHarp/HEP/blob/main/HEP_notebooks/01_model/01_HEP_main.ipynb
+class Gamma:
+    """ 
+    sensitivity analysis on LoS distributions for each patient type
+    """
+    def __init__(self, mean, stdv, random_seed = None):
+        self.rng = np.random.default_rng(seed = random_seed)
+        scale, shape = self.calc_params(mean, stdv)
+        self.scale = scale
+        self.shape = shape
+
+    def calc_params(self, mean, stdv):
+        scale = (stdv **2) / mean 
+        shape = (stdv **2) / (scale **2)
+        return scale, shape
+
+    def sample(self, size = None):
+        """
+        method to generate a sample from the gamma distribution
+        """
+        return self.rng.gamma(self.shape, self.scale, size = size)
+    
+class Empirical:
+    """ 
+    for los distributions not fitting statistical distributions
+    losdata: los per procedure type
+    """
+    def __init__(self, losdata, random_seed = None):
+        self.rng = np.random.default_rng(seed = random_seed)
+        self.losdata = losdata
+        
+    def sample(self, size = None):
+        """
+        method to generate a sample from empirical distribution
+        """
+        return self.rng.choice(self.losdata, size=None, replace=True)
