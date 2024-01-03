@@ -275,6 +275,8 @@ def generate_animation(
         override_y_max=None,
         time_display_units=None,
         start_date=None,
+        resource_opacity=0.8,
+        custom_resource_icon=None,
         gap_between_resources=10,
         setup_mode=False,
         frame_duration=400, #milliseconds
@@ -392,19 +394,39 @@ def generate_animation(
 
     # This just adds an additional scatter trace that creates large dots
     # that represent the individual resources
-    fig.add_trace(go.Scatter(
-        x=events_with_resources['x_final'].to_list(),
-        # Place these slightly below the y position for each entity
-        # that will be using the resource
-        y=[i-10 for i in events_with_resources['y'].to_list()],
-        mode="markers",
-        # Define what the marker will look like
-        marker=dict(
-            color='LightSkyBlue',
-            size=15),
-        opacity=0.8,
-        hoverinfo='none'
-    ))
+    #TODO: Add ability to pass in 'icon' column as part of the event_position_df that
+    # can then be used to provide custom icons per resource instead of a single custom
+    # icon for all resources
+    if custom_resource_icon is not None:
+        fig.add_trace(go.Scatter(
+            x=events_with_resources['x_final'].to_list(),
+            # Place these slightly below the y position for each entity
+            # that will be using the resource
+            y=[i-10 for i in events_with_resources['y'].to_list()],
+            mode="markers+text",
+            text=custom_resource_icon,
+            # Define what the marker will look like
+            marker=dict(
+                color='LightSkyBlue',
+                size=15,
+                opacity=0),
+            opacity=0.8,
+            hoverinfo='none'
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=events_with_resources['x_final'].to_list(),
+            # Place these slightly below the y position for each entity
+            # that will be using the resource
+            y=[i-10 for i in events_with_resources['y'].to_list()],
+            mode="markers",
+            # Define what the marker will look like
+            marker=dict(
+                color='LightSkyBlue',
+                size=15),
+            opacity=resource_opacity,
+            hoverinfo='none'
+        ))
 
     #############################################
     # Optional step to add a background image
@@ -481,6 +503,8 @@ def animate_activity_log(
         gap_between_entities=10,
         gap_between_rows=30,
         gap_between_resources=10,
+        resource_opacity=0.8,
+        custom_resource_icon=None,
         override_x_max=None,
         override_y_max=None,
         time_display_units=None,
@@ -530,6 +554,8 @@ def animate_activity_log(
         override_y_max=override_y_max,
         time_display_units=time_display_units,
         setup_mode=setup_mode,
+        resource_opacity=resource_opacity,
+        custom_resource_icon=custom_resource_icon,
         frame_duration=frame_duration, #milliseconds
         frame_transition_duration=frame_transition_duration, #milliseconds
         debug_mode=debug_mode

@@ -115,16 +115,16 @@ if button_run_pressed:
                 
                 # Triage - minor and trauma                
                 {'event': 'enter_queue_for_bed', 
-                 'x':  200, 'y': 400, 'label': "Waiting for<br>Bed" },
+                 'x':  200, 'y': 400, 'label': "Waiting for<br>Availability of<br>Bed to be Confirmed<br>Before Surgery" },
 
                 {'event': 'no_bed_available', 
-                 'x':  400, 'y': 400, 'label': "No Bed<br>Available" },
+                 'x':  400, 'y': 400, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
 
                 {'event': 'post_surgery_stay_begins', 
-                 'x':  650, 'y': 300, 'resource':'n_beds', 'label': "In bed" },
+                 'x':  650, 'y': 200, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
 
                 {'event': 'discharged_after_stay', 
-                 'x':  670, 'y': 100, 'label': "Discharged from hospital after stay"}
+                 'x':  670, 'y': 75, 'label': "Discharged from Hospital<br>After Recovery"}
                 # {'event': 'exit', 
                 #  'x':  670, 'y': 100, 'label': "Exit"}
 
@@ -185,6 +185,7 @@ if button_run_pressed:
             include_play_button=True,
             add_background_image=None,
             display_stage_labels=True,
+            custom_resource_icon="🛏️",
             time_display_units="d",
             start_date="2022-06-27",
             setup_mode=False,
