@@ -634,7 +634,7 @@ class RevisionPatient:
         if self.need_for_los_delay:    
         
         #request bed on ward - if none available within 0.5-1  day, patient has surgery cancelled
-            with self.args.beds.request() as req:
+            with self.args.beds.get() as req:
                 admission = random.uniform(0.5, 1)
                 admit = yield req | self.env.timeout(admission)
 
@@ -644,6 +644,14 @@ class RevisionPatient:
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'has been allocated a bed at {self.env.now:.3f}'
                           f'and queued for {self.queue_beds:.3f}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'resource_use',
+                        'event': 'post_surgery_stay_begins',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                    )
                 
                     self.revision_los = self.args.los_delay_dist.sample()
                     yield self.env.timeout(self.revision_los)
@@ -655,6 +663,24 @@ class RevisionPatient:
                     self.total_time = self.env.now - self.arrival
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'total los = {self.total_time:.3f} with delayed discharge')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'resource_use_end',
+                        'event': 'post_surgery_stay_ends',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                    )
+                    # Resource is no longer in use, so put it back in the store
+                    self.args.beds.put(admit[req]) 
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now}
+                    )
 
                 else:
                     #patient had to leave as no beds were available on ward
@@ -669,11 +695,18 @@ class RevisionPatient:
                     self.depart = self.env.now
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'recorded {self.lost_slots_bool}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now}
+                    )
 
         #no need for delayed discharge            
         else:
             #request bed on ward - if none available within 0.5-1  day, patient has surgery cancelled
-            with self.args.beds.request() as req:
+            with self.args.beds.get() as req:
                 admission = random.uniform(0.5, 1)
                 admit = yield req | self.env.timeout(admission)
                 self.no_bed_cancellation = self.env.now - self.arrival
@@ -684,6 +717,14 @@ class RevisionPatient:
                     trace(f'revision patient {self.id} {self.revision_label}'
                           f'has been allocated a bed at {self.env.now:.3f}'
                           f'and queued for {self.queue_beds:.3f}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'resource_use',
+                        'event': 'post_surgery_stay_begins',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                    )
                     self.revision_los = self.revision_los
                     yield self.env.timeout(self.revision_los)
                     self.lost_slots_bool = False
@@ -693,6 +734,24 @@ class RevisionPatient:
                     trace(f'los of revision patient {self.id} completed at {self.env.now:.3f}')
                     self.total_time = self.env.now - self.arrival
                     trace(f'revision patient {self.id} total los = {self.total_time:.3f}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event_type': 'resource_use_end',
+                        'event': 'post_surgery_stay_ends',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                        )
+                    # Resource is no longer in use, so put it back in the store
+                    self.args.beds.put(admit[req]) 
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now}
+                    )
 
                 else:
                     #patient had to leave as no beds were available on ward
@@ -706,6 +765,13 @@ class RevisionPatient:
                     self.depart = self.env.now 
                     trace(f'revision patient {self.id} {self.revision_label}' 
                           f'recorded {self.lost_slots_bool}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Revision',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now}
+                    )
    
 
 # The model class
@@ -897,7 +963,7 @@ class Hospital:
         single run of model
         """
         self.env.process(self.patient_arrivals_generator_primary())
-        # self.env.process(self.patient_arrivals_generator_revision())
+        self.env.process(self.patient_arrivals_generator_revision())
         self.env.process(self.perform_audit())
         self.results_collection = results_collection
         self.env.run(until=results_collection)

@@ -80,11 +80,11 @@ def multiple_replications(scenario,
     df_day_results['run'] = run
     
     #patient results for all days and all runs (warmup included)
-    primary_pt_results = [single_run(scenario, results_collection_plus_warmup, random_no_set=rep)[2][0]
+    primary_pt_results = [single_run(scenario, results_collection_plus_warmup, random_no_set=rep)[2][0].assign(rep = rep+1)
                          for rep in range(n_reps)]       
     primary_pt_results = pd.concat(primary_pt_results)
 
-    revision_pt_results = [single_run(scenario, results_collection_plus_warmup, random_no_set=rep)[2][1]
+    revision_pt_results = [single_run(scenario, results_collection_plus_warmup, random_no_set=rep)[2][1].assign(rep = rep+1)
                          for rep in range(n_reps)]
     revision_pt_results = pd.concat(revision_pt_results)
 
@@ -92,7 +92,7 @@ def multiple_replications(scenario,
         event_log = [single_run(scenario, 
                                 results_collection_plus_warmup, 
                                 random_no_set=rep,
-                                return_detailed_logs=True)[3]
+                                return_detailed_logs=True)[3].assign(rep = rep+1)
                             for rep in range(n_reps)]       
         event_log = pd.concat(event_log)
 
