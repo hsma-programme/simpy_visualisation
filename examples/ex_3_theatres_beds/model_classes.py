@@ -401,213 +401,213 @@ class PrimaryPatient:
             
             #request a bed on ward - if none available within 0.5-1 day, 
             # patient has surgery cancelled
-            req = self.args.beds.get()
+            with self.args.beds.get() as req:
                 
-            self.event_log.append(
-                {'patient': self.id,
-                'pathway': 'Primary',
-                'event_type': 'queue',
-                'event': 'enter_queue_for_bed',
-                'time': self.env.now}
-            )
-
-            admission = random.uniform(0.5,1)
-            admit = yield req | self.env.timeout(admission)
-
-            # Logic for if wait for bed is less than threshold (so patient goes ahead
-            # and has surgery, and is then put into bed)
-            if req in admit:
-                #record queue time for primary patients -- if > admission,
-                # this patient will leave the system and the slot is lost
-
-                self.queue_beds = self.env.now - self.arrival
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'has been allocated a bed at {self.env.now:.3f}' 
-                        f'and queued for {self.queue_beds:.3f}')
-
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event_type': 'resource_use',
-                    'event': 'post_surgery_stay_begins',
-                    'time': self.env.now,
-                    # Syntax from https://stackoverflow.com/questions/74842300/how-to-get-the-item-name-and-not-its-address-when-requesting-with-a-condition-e
-                    'resource_id': admit[req].id_attribute}
-                )
-
-                # NOTE: SR TWEAKED THIS LINE COMPARED TO ORIGINAL MODEL
-                # DOUBLE CHECK INTENDED ACTION HAS BEEN CORRECTLY UNDERSTOOD
-                self.primary_los = self.primary_los + self.args.los_delay_dist.sample()
-                yield self.env.timeout(self.primary_los)
-                self.lost_slots_bool = False
-                self.delayed_los_bool = True
-                self.depart = self.env.now
-                trace(f'los of primary patient {self.id} completed at {self.env.now:.3f}')
-                self.total_time = self.env.now - self.arrival
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'total los = {self.total_time:.3f} with delayed discharge')
-                
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event_type': 'resource_use_end',
-                    'event': 'post_surgery_stay_ends',
-                    'time': self.env.now,
-                    'resource_id': admit[req].id_attribute}
-                )
-
                 self.event_log.append(
                     {'patient': self.id,
                     'pathway': 'Primary',
                     'event_type': 'queue',
-                    'event': 'discharged_after_stay',
+                    'event': 'enter_queue_for_bed',
                     'time': self.env.now}
                 )
-                
-                # Resource is no longer in use, so put it back in the store
-                self.args.beds.put(admit[req]) 
 
-                # Patient's LOS is complete - they leave the hospital
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event_type': 'arrival_departure',
-                    'event': 'depart',
-                    'time': self.env.now+1}
-                )
+                admission = random.uniform(0.5,1)
+                admit = yield req | self.env.timeout(admission)
 
-            else:
-                #patient had to leave as no beds were available on ward
-                
-                # Put the bed back in to the store
-                req = yield req
-                self.args.beds.put(req) 
+                # Logic for if wait for bed is less than threshold (so patient goes ahead
+                # and has surgery, and is then put into bed)
+                if req in admit:
+                    #record queue time for primary patients -- if > admission,
+                    # this patient will leave the system and the slot is lost
 
-                self.no_bed_cancellation = self.env.now - self.arrival
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event': 'no_bed_available',
-                    'event_type': 'queue',
-                    'time': self.env.now}
-                )
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
-                self.queue_beds = self.env.now - self.arrival
-                self.total_time = self.env.now - self.arrival
-                self.primary_los = 0
-                self.lost_slots_bool = True
-                self.delayed_los_bool = False
-                self.depart = self.env.now
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'recorded {self.lost_slots_bool}')
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event': 'depart',
-                    'event_type': 'arrival_departure',
-                    'time': self.env.now+1}
-                )
+                    self.queue_beds = self.env.now - self.arrival
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'has been allocated a bed at {self.env.now:.3f}' 
+                            f'and queued for {self.queue_beds:.3f}')
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'resource_use',
+                        'event': 'post_surgery_stay_begins',
+                        'time': self.env.now,
+                        # Syntax from https://stackoverflow.com/questions/74842300/how-to-get-the-item-name-and-not-its-address-when-requesting-with-a-condition-e
+                        'resource_id': admit[req].id_attribute}
+                    )
+
+                    # NOTE: SR TWEAKED THIS LINE COMPARED TO ORIGINAL MODEL
+                    # DOUBLE CHECK INTENDED ACTION HAS BEEN CORRECTLY UNDERSTOOD
+                    self.primary_los = self.primary_los + self.args.los_delay_dist.sample()
+                    yield self.env.timeout(self.primary_los)
+                    self.lost_slots_bool = False
+                    self.delayed_los_bool = True
+                    self.depart = self.env.now
+                    trace(f'los of primary patient {self.id} completed at {self.env.now:.3f}')
+                    self.total_time = self.env.now - self.arrival
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'total los = {self.total_time:.3f} with delayed discharge')
+                    
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'resource_use_end',
+                        'event': 'post_surgery_stay_ends',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                    )
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'queue',
+                        'event': 'discharged_after_stay',
+                        'time': self.env.now}
+                    )
+                    
+                    # Resource is no longer in use, so put it back in the store
+                    self.args.beds.put(admit[req]) 
+
+                    # Patient's LOS is complete - they leave the hospital
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'arrival_departure',
+                        'event': 'depart',
+                        'time': self.env.now+1}
+                    )
+
+                else:
+                    #patient had to leave as no beds were available on ward
+                    
+                    # Put the bed back in to the store
+                    # req = yield req
+                    # self.args.beds.put(req) 
+
+                    self.no_bed_cancellation = self.env.now - self.arrival
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event': 'no_bed_available',
+                        'event_type': 'queue',
+                        'time': self.env.now}
+                    )
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
+                    self.queue_beds = self.env.now - self.arrival
+                    self.total_time = self.env.now - self.arrival
+                    self.primary_los = 0
+                    self.lost_slots_bool = True
+                    self.delayed_los_bool = False
+                    self.depart = self.env.now
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'recorded {self.lost_slots_bool}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now+1}
+                    )
 
         #Pathway for no delayed los
         else:
             #request a bed on ward - if none available within 0.5-1 day, patient has surgery cancelled
-            req = self.args.beds.get()
+            with self.args.beds.get() as req:
                 
-            self.event_log.append(
-                {'patient': self.id,
-                'pathway': 'Primary',
-                'event_type': 'queue',
-                'event': 'enter_queue_for_bed',
-                'time': self.env.now}
-        )
-
-            admission = random.uniform(0.5,1)
-            admit = yield req | self.env.timeout(admission)
-            self.no_bed_cancellation = self.env.now - self.arrival
-
-            if req in admit:
-                #record queue time for primary patients -- if >1, this patient will leave the system and the slot is lost
-                self.queue_beds = self.env.now - self.arrival
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'has been allocated a bed at {self.env.now:.3f}'
-                        f'and queued for {self.queue_beds:.3f}')
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event_type': 'resource_use',
-                    'event': 'post_surgery_stay_begins',
-                    'time': self.env.now,
-                    'resource_id': admit[req].id_attribute}
-                    )
-                # self.primary_los = self.primary_los
-                yield self.env.timeout(self.primary_los)
-                self.lost_slots_bool = False
-                self.delayed_los_bool = False
-                self.depart = self.env.now
-                trace(f'los of primary patient {self.id} {self.primary_label}'
-                        f'completed at {self.env.now:.3f}')
-                self.total_time = self.env.now - self.arrival
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'total los = {self.total_time:.3f}')
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event_type': 'resource_use_end',
-                    'event': 'post_surgery_stay_ends',
-                    'time': self.env.now,
-                    'resource_id': admit[req].id_attribute}
-                    )
                 self.event_log.append(
                     {'patient': self.id,
                     'pathway': 'Primary',
                     'event_type': 'queue',
-                    'event': 'discharged_after_stay',
+                    'event': 'enter_queue_for_bed',
                     'time': self.env.now}
-                )
-                # Resource is no longer in use, so put it back in the store
-                self.args.beds.put(admit[req]) 
+            )
 
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event': 'depart',
-                    'event_type': 'arrival_departure',
-                    'time': self.env.now+1}
-                )
-                
-            else:
-                #patient had to leave as no beds were available on ward
-                # Put the bed back in to the store
-                req = yield req
-                self.args.beds.put(req) 
+                admission = random.uniform(0.5,1)
+                admit = yield req | self.env.timeout(admission)
+                self.no_bed_cancellation = self.env.now - self.arrival
 
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event': 'no_bed_available',
-                    'event_type': 'queue',
-                    'time': self.env.now}
-                )
+                if req in admit:
+                    #record queue time for primary patients -- if >1, this patient will leave the system and the slot is lost
+                    self.queue_beds = self.env.now - self.arrival
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'has been allocated a bed at {self.env.now:.3f}'
+                            f'and queued for {self.queue_beds:.3f}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'resource_use',
+                        'event': 'post_surgery_stay_begins',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                        )
+                    # self.primary_los = self.primary_los
+                    yield self.env.timeout(self.primary_los)
+                    self.lost_slots_bool = False
+                    self.delayed_los_bool = False
+                    self.depart = self.env.now
+                    trace(f'los of primary patient {self.id} {self.primary_label}'
+                            f'completed at {self.env.now:.3f}')
+                    self.total_time = self.env.now - self.arrival
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'total los = {self.total_time:.3f}')
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'resource_use_end',
+                        'event': 'post_surgery_stay_ends',
+                        'time': self.env.now,
+                        'resource_id': admit[req].id_attribute}
+                        )
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event_type': 'queue',
+                        'event': 'discharged_after_stay',
+                        'time': self.env.now}
+                    )
+                    # Resource is no longer in use, so put it back in the store
+                    self.args.beds.put(admit[req]) 
 
-                trace(f'primary patient {self.id} {self.primary_label}'
-                        f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
-                self.queue_beds = self.env.now - self.arrival
-                self.total_time = self.env.now - self.arrival
-                self.primary_los = 0
-                self.lost_slots_bool = True
-                self.delayed_los_bool = False
-                self.depart = self.env.now
-                trace(f'primary patient {self.id} {self.primary_label}' 
-                        f'recorded {self.lost_slots_bool}')
-                
-                self.event_log.append(
-                    {'patient': self.id,
-                    'pathway': 'Primary',
-                    'event': 'depart',
-                    'event_type': 'arrival_departure',
-                    'time': self.env.now+1}
-                )
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now+1}
+                    )
+                    
+                else:
+                    #patient had to leave as no beds were available on ward
+                    # Put the bed back in to the store
+                    # req = yield req
+                    # self.args.beds.put(req) 
+
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event': 'no_bed_available',
+                        'event_type': 'queue',
+                        'time': self.env.now}
+                    )
+
+                    trace(f'primary patient {self.id} {self.primary_label}'
+                            f'had surgery cancelled after {self.no_bed_cancellation:.3f}')
+                    self.queue_beds = self.env.now - self.arrival
+                    self.total_time = self.env.now - self.arrival
+                    self.primary_los = 0
+                    self.lost_slots_bool = True
+                    self.delayed_los_bool = False
+                    self.depart = self.env.now
+                    trace(f'primary patient {self.id} {self.primary_label}' 
+                            f'recorded {self.lost_slots_bool}')
+                    
+                    self.event_log.append(
+                        {'patient': self.id,
+                        'pathway': 'Primary',
+                        'event': 'depart',
+                        'event_type': 'arrival_departure',
+                        'time': self.env.now+1}
+                    )
     
 class RevisionPatient:
     """
@@ -648,6 +648,13 @@ class RevisionPatient:
         """
      
         self.arrival = self.env.now
+        self.event_log.append(
+            {'patient': self.id,
+             'pathway': 'Revision',
+             'event_type': 'arrival_departure',
+             'event': 'arrival',
+             'time': self.env.now}
+        )
         self.patient_class = 'revision'
         self.weekday = start.shift(days=self.env.now).weekday()
         
@@ -736,8 +743,8 @@ class RevisionPatient:
                     #patient had to leave as no beds were available on ward
                     
                     # Put the bed back in to the store
-                    req = yield req
-                    self.args.beds.put(req) 
+                    # req = yield req
+                    # self.args.beds.put(req) 
 
                     self.event_log.append(
                         {'patient': self.id,
@@ -826,8 +833,8 @@ class RevisionPatient:
 
                 else:
                     # Put the bed back in to the store
-                    req = yield req
-                    self.args.beds.put(req) 
+                    # req = yield req
+                    # self.args.beds.put(req) 
 
                     self.event_log.append(
                         {'patient': self.id,

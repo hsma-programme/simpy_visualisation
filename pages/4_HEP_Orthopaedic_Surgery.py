@@ -102,12 +102,16 @@ if button_run_pressed:
     revision_patients['patient class'] = revision_patients['patient class'].str.title()
     revision_patients['ID'] = revision_patients['ID'].astype('str') + revision_patients['patient class']
 
-
     full_log_with_patient_details = event_log.merge(pd.concat([primary_patients, revision_patients]), 
                                                      how="left",
                                                     left_on=["patient", "pathway"],
-                                                    right_on=["ID", "patient class"])
+                                                    right_on=["ID", "patient class"]).reset_index(drop=True).drop(columns="ID")
     
+    pid_table = full_log_with_patient_details[['patient']].drop_duplicates().reset_index(drop=True).reset_index(drop=False).rename(columns={'index': 'pid'})
+
+    full_log_with_patient_details = full_log_with_patient_details.merge(pid_table, how='left', on='patient').drop(columns='patient').rename(columns={'pid':'patient'})
+
+    st.subheader("Data - After merging full log with patient details")
     st.dataframe(full_log_with_patient_details)
     
     event_position_df = pd.DataFrame([
@@ -137,6 +141,7 @@ if button_run_pressed:
                                              debug_mode=debug_mode
                                              )
     
+    st.subheader("Dataframe - Reshaped for animation (step 1)")
     st.dataframe(full_patient_df)
     
     if debug_mode:
@@ -153,17 +158,18 @@ if button_run_pressed:
                                 debug_mode=debug_mode
                         )
     
+    st.subheader("Dataframe - Reshaped for animation (step 2)")
     st.dataframe(full_patient_df_plus_pos)
     
     def set_icon(row):
         if row["surgery type"] == "p_knee":
             return "🦵<br>1️⃣<br> "
         elif row["surgery type"] == "r_knee":
-            return "🦵<br>🔁<br> "
+            return "🦵<br>♻️<br> "
         elif row["surgery type"] == "p_hip":
             return "🕺<br>1️⃣<br> "
         elif row["surgery type"] == "r_hip":
-            return "🕺<br>🔁<br> "
+            return "🕺<br>♻️<br> "
         elif row["surgery type"] == "uni_knee":
             return "🦵<br>✳️<br> "
         else:
