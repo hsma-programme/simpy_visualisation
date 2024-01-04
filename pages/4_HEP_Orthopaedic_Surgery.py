@@ -26,68 +26,106 @@ debug_mode=True
 
 schedule = Schedule()
 
-st.markdown(
-    """
-4 theatres
+col_a, col_b = st.columns(2)
 
-5 day/week
+with col_a:
+    st.markdown(
+        """
+    4 theatres
 
-Each theatre has three sessions per day:
+    5 day/week
 
-Morning: 1 revision OR 2 primary
+    Each theatre has three sessions per day:
 
-Afternoon: 1 revision OR 2 primary
+    Morning: 1 revision OR 2 primary
 
-Evening: 1 primary
+    Afternoon: 1 revision OR 2 primary
 
-40 ring-fenced beds for recovery from these operations
-    """
-)
+    Evening: 1 primary
 
-st.dataframe(
-    pd.DataFrame.from_dict(schedule.sessions_per_weekday, orient="index")
-    .rename(columns={0: "Sessions"}).merge(
+    40 ring-fenced beds for recovery from these operations
+        """
+    )
 
-    pd.DataFrame.from_dict(schedule.theatres_per_weekday, orient="index")
-        .rename(columns={0: "Theatre Capacity"}), 
+with col_b:
+    st.dataframe(
+        pd.DataFrame.from_dict(schedule.sessions_per_weekday, orient="index")
+        .rename(columns={0: "Sessions"}).merge(
+
+        pd.DataFrame.from_dict(schedule.theatres_per_weekday, orient="index")
+            .rename(columns={0: "Theatre Capacity"}), 
+            left_index=True, right_index=True
+
+        ).merge(
+
+        pd.DataFrame.from_dict(schedule.allocation, orient="index"), 
         left_index=True, right_index=True
 
-    ).merge(
+        )
+        )
 
-    pd.DataFrame.from_dict(schedule.allocation, orient="index"), 
-    left_index=True, right_index=True
+col1, col2 = st.columns(2)
 
-    )
-    )
+with col1:
+    st.markdown('# Model Parameters')
+		
+    st.markdown('## Ring-fenced beds:')
+    n_beds = st.slider('Beds', 10, 80, 40, 1)
 
-args = Scenario(schedule=schedule)
+    st.markdown('## Mean lengths-of-stay for each type of surgery:')
+    primary_hip_los = st.slider('Primary Hip LoS', 1.0, 10.0, 4.4, 0.1)
+
+    primary_knee_los = st.slider('Primary Knee LoS', 1.0, 10.0, 4.7, 0.1)
+
+    revision_hip_los = st.slider('Revision Hip LoS', 2.0, 10.0, 6.9 , 0.1)
+
+    revision_knee_los = st.slider('Revision Knee LoS', 2.0, 10.0, 7.2, 0.1)
+
+    unicompart_knee_los = st.slider('Unicompart knee LoS', 1.0, 10.0,2.9, 0.1)
+
+with col2:
+    st.markdown('## Mean length of delayed discharge:')
+    los_delay = st.slider('Mean length of delay', 2.0, 10.0,16.5, 0.1)
+    los_delay_sd = st.slider('Variation of delay (standard deviation)', 1.0, 25.0,15.2, 0.1)
+		
+    st.markdown('## Proportion of patients with a discharge delay:')
+    prop_delay = st.slider('Proportion delayed', 0.00, 1.00, 0.076, 0.01)
+		
+    st.markdown('## :green[Model execution]')
+    replications = st.slider(':green[Number of runs]', 1, 50, 30)
+    runtime = st.slider(':green[Runtime (days)]', 30, 100, 60)
+    warmup=st.slider(':green[Warmup (days)]', 1, 14, 7)
 
 button_run_pressed = st.button("Run simulation")
 
+args = Scenario(schedule=schedule,
+                primary_hip_mean_los=primary_hip_los,
+                primary_knee_mean_los=primary_knee_los,
+                revision_hip_mean_los=revision_hip_los,
+                revision_knee_mean_los=revision_knee_los,
+                unicompart_knee_mean_los=unicompart_knee_los,
+                prob_ward_delay=prop_delay,
+                n_beds=n_beds,
+                delay_post_los_mean=los_delay,
+                delay_post_los_sd=los_delay_sd
+                )
 
 if button_run_pressed:
 
     results = multiple_replications(
                     return_detailed_logs=True,
-                    scenario=args
+                    scenario=args,
+                    n_reps=replications,
+                    results_collection=runtime
                 )
     
     st.subheader("Summary of Results")
     st.dataframe(results[0])
 
-    # st.dataframe(results[1])
-
-    # st.dataframe(results[2])
-
-    # st.dataframe(results[3])
-
-    st.subheader("Event Log")
-    # st.dataframe(results[4])
-
+    
     # Join the event log with a list of patients to add a column that will determine
     # the icon set used for a patient (in this case, we want to distinguish between the 
     # knee/hip patients)
-
     event_log = results[4]
     event_log = event_log[event_log['rep'] == 1]
     event_log['patient'] = event_log['patient'].astype('str') + event_log['pathway']
@@ -110,9 +148,6 @@ if button_run_pressed:
     pid_table = full_log_with_patient_details[['patient']].drop_duplicates().reset_index(drop=True).reset_index(drop=False).rename(columns={'index': 'pid'})
 
     full_log_with_patient_details = full_log_with_patient_details.merge(pid_table, how='left', on='patient').drop(columns='patient').rename(columns={'pid':'patient'})
-
-    st.subheader("Data - After merging full log with patient details")
-    st.dataframe(full_log_with_patient_details)
     
     event_position_df = pd.DataFrame([
                 # {'event': 'arrival', 'x':  10, 'y': 250, 'label': "Arrival" },
@@ -141,9 +176,6 @@ if button_run_pressed:
                                              debug_mode=debug_mode
                                              )
     
-    st.subheader("Dataframe - Reshaped for animation (step 1)")
-    st.dataframe(full_patient_df)
-    
     if debug_mode:
         print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
     
@@ -152,14 +184,11 @@ if button_run_pressed:
                                 event_position_df=event_position_df,
                                 wrap_queues_at=20,
                                 step_snapshot_max=50,
-                                gap_between_entities=10,
+                                gap_between_entities=15,
                                 gap_between_resources=15,
                                 gap_between_rows=50,
                                 debug_mode=debug_mode
                         )
-    
-    st.subheader("Dataframe - Reshaped for animation (step 2)")
-    st.dataframe(full_patient_df_plus_pos)
     
     def set_icon(row):
         if row["surgery type"] == "p_knee":
@@ -191,13 +220,29 @@ if button_run_pressed:
 
     
     def indicate_delay_via_icon(row):
-        if row["delayed discharge"] == True:
+        if row["delayed discharge"] is True:
             return f'{row["icon"]}<br>*'
         else:
             return f'{row["icon"]}<br> '
 
     full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(indicate_delay_via_icon, axis=1))
 
+
+    with st.expander("Click here to view detailed event dataframes"):
+        st.subheader("Event Log")
+        st.subheader("Data - After merging full log with patient details")
+        st.dataframe(full_log_with_patient_details)
+        st.subheader("Dataframe - Reshaped for animation (step 1)")
+        st.dataframe(full_patient_df)
+        st.subheader("Dataframe - Reshaped for animation (step 2)")
+        st.dataframe(full_patient_df_plus_pos)
+
+    cancelled_due_to_no_bed_available = len(full_log_with_patient_details[full_log_with_patient_details['event'] == "no_bed_available"]["patient"].unique())
+    total_patients = len(full_log_with_patient_details["patient"].unique())
+
+    cancelled_perc = cancelled_due_to_no_bed_available/total_patients
+
+    st.markdown(f"Surgeries cancelled due to no bed being available in time: {cancelled_perc:.2%} ({cancelled_due_to_no_bed_available} of {total_patients})")
 
     st.plotly_chart(
         generate_animation(
@@ -217,11 +262,13 @@ if button_run_pressed:
             time_display_units="d",
             start_date="2022-06-27",
             setup_mode=False,
-            frame_duration=1000, #milliseconds
-            frame_transition_duration=600, #milliseconds
+            frame_duration=1500, #milliseconds
+            frame_transition_duration=1000, #milliseconds
             debug_mode=False
         )
     )
+
+
 
     # st.plotly_chart(
     #         animate_activity_log(
