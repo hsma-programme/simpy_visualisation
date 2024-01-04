@@ -17,9 +17,41 @@ st.title("Orthopaedic Ward - Hospital Efficiency Project")
 st.markdown(
     """
 This is the orthopaedic surgery model developed as part of the hospital efficiency project. 
+"""
+)
+st.caption(
+    """
+@software{Harper_Hospital_Efficiency_Project,
 
+author = {Harper, Alison and Monks, Thomas},
+
+license = {MIT},
+
+title = {{Hospital Efficiency Project  Orthopaedic Planning Model Discrete-Event Simulation}},
+
+url = {https://github.com/AliHarp/HEP}
+} 
+""")
+
+st.markdown(
+    """
+It has been used as a test case here to allow the development and testing of several key features of the event log animations:
+    
+- adding of logging to a model from scratch
+
+- ensuring the requirement to use simpy stores instead of simpy resources doesn't prevent the uses of certain common modelling patterns (in this case, conditional logic where patients will leave the system if a bed is not available within a specified period of time)
+
+- displaying different icons for different classes of patients
+
+- displaying custom resource icons
+
+- displaying additional static information as part of the icon (in this case, whether the client's discharge is delayed)
+
+- displaying information that updates with each animation step as part of the icon (in this case, the LoS of the patient at each time point)
     """
 )
+
+st.divider()
 
 TRACE = True
 debug_mode=True
@@ -63,6 +95,9 @@ with col_b:
 
         )
         )
+    
+
+st.divider()
 
 col1, col2 = st.columns(2)
 
@@ -171,7 +206,7 @@ if button_run_pressed:
     
     full_patient_df = reshape_for_animations(full_log_with_patient_details, 
                                              every_x_time_units=1,
-                                             limit_duration=42,
+                                             limit_duration=runtime,
                                              step_snapshot_max=50,
                                              debug_mode=debug_mode
                                              )
@@ -244,6 +279,25 @@ if button_run_pressed:
 
     st.markdown(f"Surgeries cancelled due to no bed being available in time: {cancelled_perc:.2%} ({cancelled_due_to_no_bed_available} of {total_patients})")
 
+    st.markdown(
+        """
+        **Key**: 
+        
+        🦵1️⃣: Primary Knee
+        
+        🦵♻️: Revision Knee
+        
+        🕺1️⃣: Primary Hip
+        
+        🕺♻️: Revision Hip
+        
+        🦵✳️: Primary Unicompartment Knee
+        
+        An asterisk (*) indicates that the patient has a delayed discharge from the ward.
+
+        The numbers below patients indicate their length of stay.
+        """
+    )
     st.plotly_chart(
         generate_animation(
             full_patient_df_plus_pos=full_patient_df_plus_pos,
