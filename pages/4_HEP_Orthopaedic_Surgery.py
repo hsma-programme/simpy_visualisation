@@ -296,6 +296,10 @@ if button_run_pressed:
         An asterisk (*) indicates that the patient has a delayed discharge from the ward.
 
         The numbers below patients indicate their length of stay.
+
+        Note that the "No Bed Available: Surgery Cancelled" and "Discharged from Hospital after Recovery" stages in the animation are lagged by one day.
+        For example, on the 2nd of July, this will show the patients who had their surgery cancelled on 1st July or were discharged on 1st July. 
+        These steps are included to make it easier to understand the destinations of different clients, but due to the size of the simulation step shown (1 day) it is difficult to demonstrate this differently. 
         """
     )
     st.plotly_chart(
