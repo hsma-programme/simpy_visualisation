@@ -17,7 +17,9 @@ st.markdown(
     """
 This shows the functionality of changing the maximum number of patients who will be displayed at any step.
 This is important for preventing the animation from becoming too large and unwieldy in situations with large bottlenecks,
-where the position of very large numbers of patients will end becoming tracked at every point.
+where the position of very large numbers of patients will end up being tracked at every point.
+
+Despite these adjustments, this simulation takes quite a long time to run - it may take 1 to 1.5 minutes to load after clicking the button.
     """
 )
 
