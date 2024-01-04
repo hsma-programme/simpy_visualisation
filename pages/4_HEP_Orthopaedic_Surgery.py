@@ -1,10 +1,14 @@
+import gc
+import time
+import datetime as dt
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from examples.ex_3_theatres_beds.simulation_execution_functions import multiple_replications
 from examples.ex_3_theatres_beds.model_classes import Scenario, Schedule
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
-import gc
-import time
+
 
 st.set_page_config(layout="wide", 
                    initial_sidebar_state="expanded",
@@ -302,8 +306,8 @@ if button_run_pressed:
         These steps are included to make it easier to understand the destinations of different clients, but due to the size of the simulation step shown (1 day) it is difficult to demonstrate this differently. 
         """
     )
-    st.plotly_chart(
-        generate_animation(
+
+    fig = generate_animation(
             full_patient_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=args,
@@ -315,7 +319,11 @@ if button_run_pressed:
             gap_between_resources=15,
             include_play_button=True,
             add_background_image=None,
-            display_stage_labels=True,
+            # we want the stage labels, but due to a bug
+            # when we add in additional animated traces later,
+            # they will disappear - so better to leave them out here
+            # and then re-add them manually
+            display_stage_labels=False,
             custom_resource_icon="🛏️",
             time_display_units="d",
             start_date="2022-06-27",
@@ -324,6 +332,90 @@ if button_run_pressed:
             frame_transition_duration=1000, #milliseconds
             debug_mode=False
         )
+    
+    counts_not_avail = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='no_bed_available'][['minute','patient']].groupby('minute').agg('count')
+    counts_not_avail = counts_not_avail.reset_index().merge(full_patient_df_plus_pos[['minute']].drop_duplicates(), how='right').sort_values('minute')
+    counts_not_avail['patient'] = counts_not_avail['patient'].fillna(0)
+    counts_not_avail['running_total'] = counts_not_avail['patient'].cumsum()
+
+    counts_ops_completed = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='post_surgery_stay_begins'][['minute','patient']].drop_duplicates('patient').groupby('minute').agg('count')
+    counts_ops_completed = counts_ops_completed.reset_index().merge(full_patient_df_plus_pos[['minute']].drop_duplicates(), how='right').sort_values('minute')
+    counts_ops_completed['patient'] = counts_ops_completed['patient'].fillna(0)
+    counts_ops_completed['running_total'] = counts_ops_completed['patient'].cumsum()
+
+    counts_not_avail = counts_not_avail.merge(counts_ops_completed.rename(columns={'running_total':'completed'}), how="left", on="minute")
+    counts_not_avail['perc_slots_lost'] = counts_not_avail['running_total'] / (counts_not_avail['running_total'] + counts_not_avail['completed'])
+   
+    ## add the text as a trace to it shows up initially
+    # Due to issues detailed in the following SO threads, it's essential to initialize the traces
+    # outside of the frames argument else they will not show up
+    # https://stackoverflow.com/questions/69867334/multiple-traces-per-animation-frame-in-plotly
+    # 
+    fig.add_trace(go.Scatter(
+        x=[600],
+        y=[550],
+        text=f"Total slots lost: {int(counts_not_avail['running_total'][0])}<br>({counts_not_avail['perc_slots_lost'][0]:.1%})",
+        mode='text',
+        textfont=dict(size=20),
+        # opacity=0,
+        showlegend=False,
+    ))
+    fig.add_trace(go.Scatter(
+            x=[pos+10 for pos in event_position_df['x'].to_list()],
+            y=event_position_df['y'].to_list(),
+            mode="text",
+            name="",
+            text=event_position_df['label'].to_list(),
+            textposition="middle right",
+            hoverinfo='none'
+        ))
+    fig.add_trace(go.Scatter(
+                x=[100],
+                y=[50],
+                text=f"Operations Completed: {int(counts_ops_completed['running_total'][0])}",
+                mode='text',
+                textfont=dict(size=20),
+                opacity=0,
+                showlegend=False,
+        ))
+
+    # add the text to each individual frame
+    for i, frame in enumerate(fig.frames):
+        frame.data =  frame.data + (go.Scatter(
+            x=[pos+10 for pos in event_position_df['x'].to_list()],
+            y=event_position_df['y'].to_list(),
+            mode="text",
+            name="",
+            text=event_position_df['label'].to_list(),
+            textposition="middle right",
+            hoverinfo='none'
+        ),
+        )+ (
+            go.Scatter(
+                x=[600],
+                y=[550],
+                text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
+                mode='text',
+                textfont=dict(size=20),
+                showlegend=False,
+            ),
+        ) + (
+            go.Scatter(
+                x=[100],
+                y=[50],
+                text=f"Operations Completed: {int(counts_ops_completed['running_total'][i])}",
+                mode='text',
+                textfont=dict(size=20),
+                showlegend=False,
+            ),
+        )   #+ ((fig.data[-1]), ) + ((fig.data[-2]), )
+
+    fig.update_traces(textfont_size=14)
+
+    # fig.frames[0]
+
+    st.plotly_chart(
+        fig    
     )
 
 
@@ -355,3 +447,4 @@ if button_run_pressed:
     #     )                                               
 
     
+
