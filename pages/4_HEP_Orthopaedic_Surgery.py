@@ -311,10 +311,10 @@ if button_run_pressed:
             full_patient_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=args,
-            plotly_height=700,
+            plotly_height=750,
             plotly_width=1000,
             override_x_max=800,
-            override_y_max=550,
+            override_y_max=500,
             icon_and_text_size=14,
             gap_between_resources=15,
             include_play_button=True,
@@ -362,14 +362,26 @@ if button_run_pressed:
     # stop it showing up when added in the frames but not always; sometimes the initial trace doesn't disappear).
     
     fig.add_trace(go.Scatter(
+                    x=[100],
+                    y=[50],
+                    text=f"Operations Completed: {int(counts_ops_completed['running_total'][0])}",
+                    mode='text',
+                    textfont=dict(size=20),
+                    opacity=0,
+                    showlegend=False,
+            ))
+
+    fig.add_trace(go.Scatter(
         x=[600],
-        y=[550],
+        y=[600],
         text=f"Total slots lost: {int(counts_not_avail['running_total'][0])}<br>({counts_not_avail['perc_slots_lost'][0]:.1%})",
         mode='text',
         textfont=dict(size=20),
         # opacity=0,
         showlegend=False,
     ))
+    
+   
     fig.add_trace(go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
             y=event_position_df['y'].to_list(),
@@ -378,15 +390,6 @@ if button_run_pressed:
             text=event_position_df['label'].to_list(),
             textposition="middle right",
             hoverinfo='none'
-        ))
-    fig.add_trace(go.Scatter(
-                x=[100],
-                y=[50],
-                text=f"Operations Completed: {int(counts_ops_completed['running_total'][0])}",
-                mode='text',
-                textfont=dict(size=20),
-                opacity=0,
-                showlegend=False,
         ))
     
     fig.update_traces(textfont_size=14)
@@ -411,7 +414,7 @@ if button_run_pressed:
     # Add an initial trace to our secondary line chart
     fig.add_trace(go.Scatter(
         x=counts_not_avail['minute'],
-        y=counts_not_avail['running_total'],
+        y=counts_not_avail['patient_x'],
         mode='lines',
         showlegend=False,
         # name='line',
@@ -427,7 +430,7 @@ if button_run_pressed:
          # Slots lost
         (go.Scatter(
                 x=[600],
-                y=[550],
+                y=[600],
                 text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
                 mode='text',
                 textfont=dict(size=20),
@@ -443,20 +446,7 @@ if button_run_pressed:
                 textfont=dict(size=20),
                 showlegend=False,
             ),) 
-            + 
-        # Line subplot
-        (go.Scatter(
-            x=counts_not_avail['minute'][0: i+1].values,
-            y=counts_not_avail['running_total'][0: i+1].values,
-            mode="lines",
-            # name="line",
-            # hoverinfo='none',
-            showlegend=False,
-            name="line_subplot",
-            # line=dict(color="#f71707"),
-            xaxis='x2',
-            yaxis='y2'
-        ),) + 
+             + 
         # Position labels
         (go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
@@ -466,7 +456,20 @@ if button_run_pressed:
             text=event_position_df['label'].to_list(),
             textposition="middle right",
             hoverinfo='none'
-        ),) 
+        ),) + 
+        # Line subplot
+        (go.Scatter(
+            x=counts_not_avail['minute'][0: i+1].values,
+            y=counts_not_avail['patient_x'][0: i+1].values,
+            mode="lines",
+            # name="line",
+            # hoverinfo='none',
+            showlegend=False,
+            name="line_subplot",
+            # line=dict(color="#f71707"),
+            xaxis='x2',
+            yaxis='y2'
+        ),)
         #  + 
         #  (
         #     go.Scatter(
