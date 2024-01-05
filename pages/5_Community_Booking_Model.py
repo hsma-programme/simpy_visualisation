@@ -80,19 +80,19 @@ if button_run_pressed:
         full_patient_df = reshape_for_animations(event_log_as_is_df,
                                                  limit_duration=365,
                                                  every_x_time_units=1,
-                                                 step_snapshot_max=250)
+                                                 step_snapshot_max=150)
 
         clinics =  [x for x in event_log_as_is_df['booked_clinic'].sort_values().unique().tolist() if not math.isnan(x)]
 
         clinic_waits = [{'event': f'appointment_booked_waiting_{int(clinic)}', 
           'y':  950-(clinic+1)*80, 
-          'x': 550, 
+          'x': 625, 
           'label': f"Booked into<br>clinic {int(clinic)}"} 
           for clinic in clinics]
         
         clinic_attends = [{'event': f'have_appointment_{int(clinic)}', 
           'y':  950-(clinic+1)*80, 
-          'x': 750, 
+          'x': 850, 
           'label': f"Attending appointment<br>at clinic {int(clinic)}"} 
           for clinic in clinics]
         
@@ -106,19 +106,36 @@ if button_run_pressed:
                             full_patient_df=full_patient_df,
                             event_position_df=event_position_df,
                             wrap_queues_at=50,
-                            step_snapshot_max=250,
-                            gap_between_entities=10,
+                            step_snapshot_max=150,
+                            gap_between_entities=13,
                             gap_between_resources=15,
                             gap_between_rows=15,
                             debug_mode=True
                     )
+        
+        def show_priority_icon(row):
+            if row["pathway"] == 2:
+                return "🚨"
+            else:
+                return row["icon"] 
+
+        def add_los_to_icon(row):
+            if row["event_original"] == "have_appointment":
+                return f'{row["icon"]}<br>{int(row["wait"])}'
+            else:
+                return row["icon"] 
+
+        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(show_priority_icon, axis=1))
+
+        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1))
+
         
         fig = generate_animation(
             full_patient_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=None,
             plotly_height=850,
-            plotly_width=1000,
+            plotly_width=1100,
             override_x_max=1000,
             override_y_max=1000,
             icon_and_text_size=10,
@@ -137,3 +154,15 @@ if button_run_pressed:
         st.plotly_chart(fig)
 
     # fig.show()
+        
+#TODO
+# Add in additional trace that shows the number of available slots per day
+# using the slot df
+        
+#TODO
+# Pooled booking version where being in non-home clinic makes you one colour
+# and home clinic makes you another
+        
+#TODO
+# Investigate adding a priority attribute to event log
+# that can be considered when ranking queues if present

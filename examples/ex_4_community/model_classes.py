@@ -543,6 +543,11 @@ class PatientReferral(object):
         #wait for appointment
         yield self.env.timeout(best_t - self.referral_t)
 
+        # measure waiting time on day of appointment
+        #(could also record this before appointment, but leaving until 
+        #afterwards allows modifications where patients can be moved)
+        self.waiting_time = best_t - self.referral_t
+
         # Use appointment
         self.event_log.append(
             {'patient': self.identifier,
@@ -551,7 +556,8 @@ class PatientReferral(object):
              'event': 'have_appointment',
              'booked_clinic': int(self.booked_clinic),
              'home_clinic': int(self.home_clinic),
-             'time': self.env.now
+             'time': self.env.now,
+             'wait': self.waiting_time
              }
         )
 
@@ -564,10 +570,7 @@ class PatientReferral(object):
              'time': self.env.now+1}
         )
         
-        # measure waiting time on day of appointment
-        #(could also record this before appointment, but leaving until 
-        #afterwards allows modifications where patients can be moved)
-        self.waiting_time = best_t - self.referral_t
+
         
 class AssessmentReferralModel(object):
     '''
