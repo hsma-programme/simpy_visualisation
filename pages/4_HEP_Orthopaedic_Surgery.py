@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from examples.ex_3_theatres_beds.simulation_execution_functions import multiple_replications
 from examples.ex_3_theatres_beds.model_classes import Scenario, Schedule
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
-
+from plotly.subplots import make_subplots
 
 st.set_page_config(layout="wide", 
                    initial_sidebar_state="expanded",
@@ -389,56 +389,41 @@ if button_run_pressed:
                 showlegend=False,
         ))
     
-
-
-    from plotly.subplots import make_subplots
-
+    fig.update_traces(textfont_size=14)
+    
+    # We want to try and add an additional animated scatterplot that 
     sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
 
-    # fig = go.Figure()
-    # fig.layout
-
+    # Overwrite the domain of our original x and y axis with domain from the new axis
     fig.layout['xaxis']['domain'] = sp.layout['xaxis']['domain']
     fig.layout['yaxis']['domain'] = sp.layout['yaxis']['domain']
 
+    # Add in the attributes for the secondary axis from our subplot
     fig.layout['xaxis2'] = sp.layout['xaxis2']
     fig.layout['yaxis2'] = sp.layout['yaxis2']
 
-    # fig.layout
-    # sp.layout
-
+    # Final key step - copy over the _grid_ref attribute
+    # This isn't meant to be something we modify but it's an essential
+    # part of the subplot code because otherwise plotly doesn't truly know
+    # how the different subplots are arranged and referenced
     fig._grid_ref = sp._grid_ref
 
-    # sp.print_grid()
-    # fig.print_grid()
-
-    # fig.layout
-    
-    # for i in fig.data :
-    #     sp.add_trace(i, row=1, col=1)
-
-
+    # Add an initial trace to our secondary line chart
     fig.add_trace(go.Scatter(
-        x=[0, 1, 2, 3],
-        y=[0, 2, 4, 8],
+        x=counts_not_avail['minute'],
+        y=counts_not_avail['running_total'],
         mode='lines',
-        showlegend=False
+        showlegend=False,
+        # name='line',
+        opacity=0.2,
+        xaxis="x2",
+        yaxis="y2"
+        # We place it in our new subplot using the following notation
     ), row=2, col=1)
 
     # Now we need to add our traces to each individual frame
     for i, frame in enumerate(fig.frames):
         frame.data =  (frame.data + 
-        # Position labels
-        (go.Scatter(
-            x=[pos+10 for pos in event_position_df['x'].to_list()],
-            y=event_position_df['y'].to_list(),
-            mode="text",
-            name="",
-            text=event_position_df['label'].to_list(),
-            textposition="middle right",
-            hoverinfo='none'
-        ),
-        ) + 
          # Slots lost
         (go.Scatter(
                 x=[600],
@@ -447,8 +432,7 @@ if button_run_pressed:
                 mode='text',
                 textfont=dict(size=20),
                 showlegend=False,
-            ),
-        ) + 
+            ),) + 
         # Slots used/operations occurred
          (
             go.Scatter(
@@ -458,8 +442,31 @@ if button_run_pressed:
                 mode='text',
                 textfont=dict(size=20),
                 showlegend=False,
-            ),
-            ) 
+            ),) 
+            + 
+        # Line subplot
+        (go.Scatter(
+            x=counts_not_avail['minute'][0: i+1].values,
+            y=counts_not_avail['running_total'][0: i+1].values,
+            mode="lines",
+            # name="line",
+            # hoverinfo='none',
+            showlegend=False,
+            name="line_subplot",
+            # line=dict(color="#f71707"),
+            xaxis='x2',
+            yaxis='y2'
+        ),) + 
+        # Position labels
+        (go.Scatter(
+            x=[pos+10 for pos in event_position_df['x'].to_list()],
+            y=event_position_df['y'].to_list(),
+            mode="text",
+            name="",
+            text=event_position_df['label'].to_list(),
+            textposition="middle right",
+            hoverinfo='none'
+        ),) 
         #  + 
         #  (
         #     go.Scatter(
@@ -474,8 +481,34 @@ if button_run_pressed:
         ) 
         #+ ((fig.data[-1]), ) + ((fig.data[-2]), )
 
+    # Ensure we tell it which traces we are animating 
+    # (as per https://chart-studio.plotly.com/~empet/15243/animating-traces-in-subplotsbr/#/)
+    for i, frame in enumerate(fig.frames):
+        frame['traces'] = [0, 1, 2, 3, 4]
+
+    # for frame in fig.frames:
+    #     fig._set_trace_grid_position(frame.data[-1], 2,1)
+
     # Finally, match these new traces with the text size used elsewhere 
     fig.update_traces(textfont_size=14)
+
+    # sp_test = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
+
+    # test = sp_test.add_trace(go.Scatter(
+    #         x=counts_not_avail['minute'][0: i+1].values,
+    #         y=counts_not_avail['running_total'][0: i+1].values,
+    #         mode="lines",
+    #         name="line",
+    #         # hoverinfo='none',
+    #         showlegend=False,
+    #         # line=dict(color="#f71707"),
+    #         xaxis='x2',
+    #         yaxis='y2'
+    #     ),row=2, col=1)
+
+    # fig
+
+    
 
     # fig.frames[0]
 
@@ -485,6 +518,8 @@ if button_run_pressed:
     st.plotly_chart(
         fig    
     )
+
+    
 
 
     # sp.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]),
@@ -521,3 +556,4 @@ if button_run_pressed:
 
     
 
+# fig.b
