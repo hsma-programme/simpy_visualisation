@@ -202,7 +202,7 @@ if button_run_pressed:
                  'x':  650, 'y': 200, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
 
                 {'event': 'discharged_after_stay', 
-                 'x':  670, 'y': 50, 'label': "Discharged from Hospital<br>After Recovery"}
+                 'x':  670, 'y': 40, 'label': "Discharged from Hospital<br>After Recovery"}
                 # {'event': 'exit', 
                 #  'x':  670, 'y': 100, 'label': "Exit"}
 
@@ -361,6 +361,12 @@ if button_run_pressed:
     # loop sometimes seems to make a difference but sometimes doesn't; making initial trace transparent sometimes seems to 
     # stop it showing up when added in the frames but not always; sometimes the initial trace doesn't disappear).
     
+    # Add bed trace in manually to ensure it can be referenced later
+    fig.add_trace(go.Scatter(x=[100], y=[100]))
+
+    fig.add_trace(fig.data[1])
+
+    # Add animated text trace that gives running total of operations completed
     fig.add_trace(go.Scatter(
                     x=[100],
                     y=[50],
@@ -371,17 +377,20 @@ if button_run_pressed:
                     showlegend=False,
             ))
 
+    # Add animated trace giving running total of slots lost and percentage of total slots this represents
     fig.add_trace(go.Scatter(
         x=[600],
         y=[600],
-        text=f"Total slots lost: {int(counts_not_avail['running_total'][0])}<br>({counts_not_avail['perc_slots_lost'][0]:.1%})",
+        text="",
+        # text=f"Total slots lost: {int(counts_not_avail['running_total'][0])}<br>({counts_not_avail['perc_slots_lost'][0]:.1%})",
         mode='text',
         textfont=dict(size=20),
         # opacity=0,
         showlegend=False,
     ))
     
-   
+    # Add trace for the event labels (as these get lost from the animation once we start trying to add other things in,
+    # so need manually re-adding)
     fig.add_trace(go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
             y=event_position_df['y'].to_list(),
@@ -392,9 +401,10 @@ if button_run_pressed:
             hoverinfo='none'
         ))
     
+    # Ensure these all have the right text size
     fig.update_traces(textfont_size=14)
     
-    # We want to try and add an additional animated scatterplot that 
+    # Now set up the desired subplot layout
     sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
 
     # Overwrite the domain of our original x and y axis with domain from the new axis
@@ -421,21 +431,17 @@ if button_run_pressed:
         opacity=0.2,
         xaxis="x2",
         yaxis="y2"
-        # We place it in our new subplot using the following notation
+        # We place it in our new subplot using the following line
     ), row=2, col=1)
 
+    ##########################################################
     # Now we need to add our traces to each individual frame
+    ##########################################################
+    # To work correctly, these need to be provided in the same order as the traces above
     for i, frame in enumerate(fig.frames):
         frame.data =  (frame.data + 
-         # Slots lost
-        (go.Scatter(
-                x=[600],
-                y=[600],
-                text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
-                mode='text',
-                textfont=dict(size=20),
-                showlegend=False,
-            ),) + 
+        # bed icons
+        (fig.data[1],) + 
         # Slots used/operations occurred
          (
             go.Scatter(
@@ -447,6 +453,15 @@ if button_run_pressed:
                 showlegend=False,
             ),) 
              + 
+         # Slots lost
+        (go.Scatter(
+                x=[600],
+                y=[600],
+                text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
+                mode='text',
+                textfont=dict(size=20),
+                showlegend=False,
+            ),) + 
         # Position labels
         (go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
@@ -469,7 +484,7 @@ if button_run_pressed:
             # line=dict(color="#f71707"),
             xaxis='x2',
             yaxis='y2'
-        ),)
+        ),) 
         #  + 
         #  (
         #     go.Scatter(
@@ -487,7 +502,8 @@ if button_run_pressed:
     # Ensure we tell it which traces we are animating 
     # (as per https://chart-studio.plotly.com/~empet/15243/animating-traces-in-subplotsbr/#/)
     for i, frame in enumerate(fig.frames):
-        frame['traces'] = [0, 1, 2, 3, 4]
+        # This will ensure it matches the number of traces we have
+        frame['traces'] = [i for i in range(len(fig.data)+1)]
 
     # for frame in fig.frames:
     #     fig._set_trace_grid_position(frame.data[-1], 2,1)
