@@ -346,11 +346,21 @@ if button_run_pressed:
     counts_not_avail = counts_not_avail.merge(counts_ops_completed.rename(columns={'running_total':'completed'}), how="left", on="minute")
     counts_not_avail['perc_slots_lost'] = counts_not_avail['running_total'] / (counts_not_avail['running_total'] + counts_not_avail['completed'])
    
-    ## add the text as a trace to it shows up initially
+    #####################################################
+    # Adding additional animation traces
+    #####################################################
+
+    ## First, add each trace so it will show up initialls
+
     # Due to issues detailed in the following SO threads, it's essential to initialize the traces
-    # outside of the frames argument else they will not show up
+    # outside of the frames argument else they will not show up at all (or show up intermittently)
     # https://stackoverflow.com/questions/69867334/multiple-traces-per-animation-frame-in-plotly
-    # 
+    # https://stackoverflow.com/questions/69367344/plotly-animating-a-variable-number-of-traces-in-each-frame-in-r
+    # TODO: More explanation and investigation needed of why sometimes traces do and don't show up after being added in 
+    # via this method. Behaviour seems very inconsistent and not always logical (e.g. order you put traces in to the later
+    # loop sometimes seems to make a difference but sometimes doesn't; making initial trace transparent sometimes seems to 
+    # stop it showing up when added in the frames but not always; sometimes the initial trace doesn't disappear).
+    
     fig.add_trace(go.Scatter(
         x=[600],
         y=[550],
@@ -378,10 +388,48 @@ if button_run_pressed:
                 opacity=0,
                 showlegend=False,
         ))
+    
 
-    # add the text to each individual frame
+
+    from plotly.subplots import make_subplots
+
+    sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
+
+    # fig = go.Figure()
+    # fig.layout
+
+    fig.layout['xaxis']['domain'] = sp.layout['xaxis']['domain']
+    fig.layout['yaxis']['domain'] = sp.layout['yaxis']['domain']
+
+    fig.layout['xaxis2'] = sp.layout['xaxis2']
+    fig.layout['yaxis2'] = sp.layout['yaxis2']
+
+    # fig.layout
+    # sp.layout
+
+    fig._grid_ref = sp._grid_ref
+
+    # sp.print_grid()
+    # fig.print_grid()
+
+    # fig.layout
+    
+    # for i in fig.data :
+    #     sp.add_trace(i, row=1, col=1)
+
+
+    fig.add_trace(go.Scatter(
+        x=[0, 1, 2, 3],
+        y=[0, 2, 4, 8],
+        mode='lines',
+        showlegend=False
+    ), row=2, col=1)
+
+    # Now we need to add our traces to each individual frame
     for i, frame in enumerate(fig.frames):
-        frame.data =  frame.data + (go.Scatter(
+        frame.data =  (frame.data + 
+        # Position labels
+        (go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
             y=event_position_df['y'].to_list(),
             mode="text",
@@ -390,8 +438,9 @@ if button_run_pressed:
             textposition="middle right",
             hoverinfo='none'
         ),
-        )+ (
-            go.Scatter(
+        ) + 
+         # Slots lost
+        (go.Scatter(
                 x=[600],
                 y=[550],
                 text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
@@ -399,7 +448,9 @@ if button_run_pressed:
                 textfont=dict(size=20),
                 showlegend=False,
             ),
-        ) + (
+        ) + 
+        # Slots used/operations occurred
+         (
             go.Scatter(
                 x=[100],
                 y=[50],
@@ -408,17 +459,39 @@ if button_run_pressed:
                 textfont=dict(size=20),
                 showlegend=False,
             ),
-        )   #+ ((fig.data[-1]), ) + ((fig.data[-2]), )
+            ) 
+        #  + 
+        #  (
+        #     go.Scatter(
+        #         x=counts_ops_completed,
+        #         y=[50],
+        #         text=f"Operations Completed: {int(counts_ops_completed['running_total'][i])}",
+        #         mode='text',
+        #         textfont=dict(size=20),
+        #         showlegend=False,
+        #     ),
+        #     ) 
+        ) 
+        #+ ((fig.data[-1]), ) + ((fig.data[-2]), )
 
+    # Finally, match these new traces with the text size used elsewhere 
     fig.update_traces(textfont_size=14)
 
     # fig.frames[0]
 
+    
+
+    
     st.plotly_chart(
         fig    
     )
 
 
+    # sp.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]),
+    #             row=1, col=1)
+
+    # sp.add_trace(go.Scatter(x=[20, 30, 40], y=[50, 60, 70]),
+                # row=2, col=1)
 
     # st.plotly_chart(
     #         animate_activity_log(
