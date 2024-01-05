@@ -199,10 +199,10 @@ if button_run_pressed:
                  'x':  600, 'y': 450, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
 
                 {'event': 'post_surgery_stay_begins', 
-                 'x':  650, 'y': 200, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
+                 'x':  650, 'y': 230, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
 
                 {'event': 'discharged_after_stay', 
-                 'x':  670, 'y': 40, 'label': "Discharged from Hospital<br>After Recovery"}
+                 'x':  670, 'y': 50, 'label': "Discharged from Hospital<br>After Recovery"}
                 # {'event': 'exit', 
                 #  'x':  670, 'y': 100, 'label': "Exit"}
 
@@ -405,7 +405,7 @@ if button_run_pressed:
     fig.update_traces(textfont_size=14)
     
     # Now set up the desired subplot layout
-    sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
+    sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15], subplot_titles=("", "Daily lost slots"))
 
     # Overwrite the domain of our original x and y axis with domain from the new axis
     fig.layout['xaxis']['domain'] = sp.layout['xaxis']['domain']
