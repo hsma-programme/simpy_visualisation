@@ -184,10 +184,11 @@ def generate_animation_df(
     # Determine the position for any resource use steps
     resource_use = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type'] == "resource_use"].copy()
     # resource_use['y_final'] =  resource_use['y']
-    resource_use = resource_use.rename(columns={"y": "y_final"})
-    resource_use['x_final'] = resource_use['x'] - resource_use['resource_id'] * gap_between_resources
-
     
+    if len(resource_use) > 0:
+        resource_use = resource_use.rename(columns={"y": "y_final"})
+        resource_use['x_final'] = resource_use['x'] - resource_use['resource_id'] * gap_between_resources
+
     # Determine the position for any queuing steps
     queues = full_patient_df_plus_pos[full_patient_df_plus_pos['event_type']=='queue'].copy()
     # queues['y_final'] =  queues['y']
@@ -207,8 +208,13 @@ def generate_animation_df(
                                 queues['x_final'] - (gap_between_entities * (wrap_queues_at/2)))
    
 
-    full_patient_df_plus_pos = pd.concat([queues, resource_use], ignore_index=True)
-    del resource_use, queues
+    if len(resource_use) > 0:
+        full_patient_df_plus_pos = pd.concat([queues, resource_use], ignore_index=True)
+        del resource_use, queues
+    else:
+        full_patient_df_plus_pos = queues.copy()
+        del queues
+   
 
     if debug_mode:
         print(f'Placement dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
@@ -264,7 +270,7 @@ def generate_animation_df(
 def generate_animation(
         full_patient_df_plus_pos,
         event_position_df,
-        scenario,
+        scenario=None,
         plotly_height=900,
         plotly_width=None,
         include_play_button=True,
@@ -338,6 +344,11 @@ def generate_animation(
     # Because of the way plots animate in this, it deals with all of the difficulty
     # of paths between individual positions - so we just have to tell it where to put
     # people at each defined step of the process, and the scattergraph will move them
+    if scenario is not None:
+        hovers = ["patient", "pathway", "time", "minute", "resource_id"]
+    else:
+        hovers = ["patient", "pathway", "time", "minute"]
+
 
     fig = px.scatter(
             full_patient_df_plus_pos.sort_values('minute'),
@@ -350,7 +361,7 @@ def generate_animation(
             animation_group="patient",
             text="icon",
             hover_name="event",
-            hover_data=["patient", "pathway", "time", "minute", "resource_id"],
+            hover_data=hovers,
             range_x=[0, x_max],
             range_y=[0, y_max],
             height=plotly_height,
@@ -385,48 +396,47 @@ def generate_animation(
     # Make an additional dataframe that has one row per resource type
     # Then, starting from the initial position, make that many large circles
     # make them semi-transparent or you won't see the people using them! 
-    events_with_resources = event_position_df[event_position_df['resource'].notnull()].copy()
-    events_with_resources['resource_count'] = events_with_resources['resource'].apply(lambda x: getattr(scenario, x))
+    if scenario is not None:
+        events_with_resources = event_position_df[event_position_df['resource'].notnull()].copy()
+        events_with_resources['resource_count'] = events_with_resources['resource'].apply(lambda x: getattr(scenario, x))
 
-    events_with_resources = events_with_resources.join(events_with_resources.apply(
-        lambda r: pd.Series({'x_final': [r['x']-(gap_between_resources*(i+1)) for i in range(r['resource_count'])]}), axis=1).explode('x_final'),
-        how='right')
+        events_with_resources = events_with_resources.join(events_with_resources.apply(
+            lambda r: pd.Series({'x_final': [r['x']-(gap_between_resources*(i+1)) for i in range(r['resource_count'])]}), axis=1).explode('x_final'),
+            how='right')
 
-    # This just adds an additional scatter trace that creates large dots
-    # that represent the individual resources
-    #TODO: Add ability to pass in 'icon' column as part of the event_position_df that
-    # can then be used to provide custom icons per resource instead of a single custom
-    # icon for all resources
-    if custom_resource_icon is not None:
-        fig.add_trace(go.Scatter(
-            x=events_with_resources['x_final'].to_list(),
-            # Place these slightly below the y position for each entity
-            # that will be using the resource
-            y=[i-10 for i in events_with_resources['y'].to_list()],
-            mode="markers+text",
-            text=custom_resource_icon,
-            # Define what the marker will look like
-            marker=dict(
-                color='LightSkyBlue',
-                size=15,
-                opacity=0),
-            opacity=0.8,
-            hoverinfo='none'
-        ))
-    else:
-        fig.add_trace(go.Scatter(
-            x=events_with_resources['x_final'].to_list(),
-            # Place these slightly below the y position for each entity
-            # that will be using the resource
-            y=[i-10 for i in events_with_resources['y'].to_list()],
-            mode="markers",
-            # Define what the marker will look like
-            marker=dict(
-                color='LightSkyBlue',
-                size=15),
-            opacity=resource_opacity,
-            hoverinfo='none'
-        ))
+        # This just adds an additional scatter trace that creates large dots
+        # that represent the individual resources
+        #TODO: Add ability to pass in 'icon' column as part of the event_position_df that
+        # can then be used to provide custom icons per resource instead of a single custom
+        # icon for all resources
+        if custom_resource_icon is not None:
+            fig.add_trace(go.Scatter(
+                x=events_with_resources['x_final'].to_list(),
+                # Place these slightly below the y position for each entity
+                # that will be using the resource
+                y=[i-10 for i in events_with_resources['y'].to_list()],
+                mode="markers+text",
+                text=custom_resource_icon,
+                # Make the actual marker invisible
+                marker=dict(opacity=0),
+                # Set opacity of the icon
+                opacity=0.8,
+                hoverinfo='none'
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=events_with_resources['x_final'].to_list(),
+                # Place these slightly below the y position for each entity
+                # that will be using the resource
+                y=[i-10 for i in events_with_resources['y'].to_list()],
+                mode="markers",
+                # Define what the marker will look like
+                marker=dict(
+                    color='LightSkyBlue',
+                    size=15),
+                opacity=resource_opacity,
+                hoverinfo='none'
+            ))
 
     #############################################
     # Optional step to add a background image

@@ -16,6 +16,33 @@ classes that allow easy control of random numbers.
 import numpy as np
 import math
 
+class Discrete:
+    """
+    Encapsulates a discrete distribution
+    """
+    def __init__(self, elements, probabilities, random_seed=None):
+        self.elements = elements
+        self.probabilities = probabilities
+        
+        self.validate_lengths(elements, probabilities)
+        self.validate_probs(probabilities)
+        
+        self.cum_probs = np.add.accumulate(probabilities)
+        
+        self.rng = np.random.default_rng(random_seed)
+        
+        
+    def validate_lengths(self, elements, probs):
+        if (len(elements) != len(probs)):
+            raise ValueError('Elements and probilities arguments must be of the same length')
+            
+    def validate_probs(self, probs):
+        if not math.isclose(sum(probs), 1.0):
+            raise ValueError('Probabilities must sum to 1')
+        
+    def sample(self, size=None):
+        return self.elements[np.digitize(self.rng.random(size), self.cum_probs)]
+
 class Exponential:
     '''
     Convenience class for the exponential distribution.
@@ -173,7 +200,7 @@ class Normal:
         return self.rng.normal(self.mean, self.sigma, size=size)
 
     
-class Uniform():
+class Uniform:
     '''
     Convenience class for the Uniform distribution.
     packages up distribution parameters, seed and random generator.
@@ -245,3 +272,38 @@ class Empirical:
         method to generate a sample from empirical distribution
         """
         return self.rng.choice(self.losdata, size=None, replace=True)
+    
+
+
+class Poisson:
+    '''
+    Convenience class for the poisson distribution.
+    packages up distribution parameters, seed and random generator.
+    '''
+    def __init__(self, mean, random_seed=None):
+        '''
+        Constructor
+        
+        Params:
+        ------
+        mean: float
+            The mean of the poisson distribution
+        
+        random_seed: int, optional (default=None)
+            A random seed to reproduce samples.  If set to none then a unique
+            sample is created.
+        '''
+        self.rand = np.random.default_rng(seed=random_seed)
+        self.mean = mean
+        
+    def sample(self, size=None):
+        '''
+        Generate a sample from the poisson distribution
+        
+        Params:
+        -------
+        size: int, optional (default=None)
+            the number of samples to return.  If size=None then a single
+            sample is returned.
+        '''
+        return self.rand.poisson(self.mean, size=size)
