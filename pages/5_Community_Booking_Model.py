@@ -24,6 +24,10 @@ st.title("Mental Health - Appointment Booking Model")
 
 #example solution...
 
+st.subheader("Weekly Slots")
+shifts = pd.read_csv("examples/ex_4_community/data/shifts.csv")
+shifts_edited = st.data_editor(shifts)
+
 #depending on settings and CPU this model takes around 15-20 seconds to run 
 
 button_run_pressed = st.button("Run simulation")
@@ -43,15 +47,16 @@ if button_run_pressed:
 
         #set up the scenario for the model to run.
         scenarios = {}
-        scenarios['as-is'] = Scenario(RUN_LENGTH, WARM_UP, seeds=generate_seed_vector())
+        scenarios['as-is'] = Scenario(RUN_LENGTH, WARM_UP, 
+                                      seeds=generate_seed_vector(),
+                                      slots_file=shifts_edited)
         scenarios['pooled'] = Scenario(RUN_LENGTH, WARM_UP, pooling=True,
-                                        seeds=generate_seed_vector())
+                                        seeds=generate_seed_vector(),
+                                      slots_file=shifts_edited)
         scenarios['no_carve_out'] = Scenario(RUN_LENGTH, WARM_UP, pooling=True, 
                                                 prop_carve_out=0.0, 
-                                                seeds=generate_seed_vector())
-
-        st.subheader("Weekly Slots")
-        st.dataframe(scenarios['as-is'].weekly_slots)
+                                                seeds=generate_seed_vector(),
+                                      slots_file=shifts_edited)
 
         col1, col2, col3 = st.columns(3)
 
@@ -78,7 +83,7 @@ if button_run_pressed:
         event_log_as_is_df['event'] = event_log_as_is_df.apply(lambda x: f"{x['event']}{f'_{int(x.booked_clinic)}' if pd.notna(x['booked_clinic']) else ''}", axis=1)
 
         full_patient_df = reshape_for_animations(event_log_as_is_df,
-                                                 limit_duration=365,
+                                                 limit_duration=180,
                                                  every_x_time_units=1,
                                                  step_snapshot_max=150)
 

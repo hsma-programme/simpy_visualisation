@@ -68,13 +68,13 @@ class Scenario():
         
         #use default files?
         if pooling_file is None:
-            pooling_file = 'examples/ex_4_community/data/partial_pooling.csv'
+            pooling_file = pd.read_csv('examples/ex_4_community/data/partial_pooling.csv')
         
         if demand_file is None:
-            demand_file = 'examples/ex_4_community/data/referrals.csv'
+            demand_file = pd.read_csv('examples/ex_4_community/data/referrals.csv')
             
         if slots_file is None:
-            slots_file = 'examples/ex_4_community/data/shifts.csv'
+            slots_file = pd.read_csv('examples/ex_4_community/data/shifts.csv')
         
         #useful if you want to record anything during a model run.
         self.debug = []
@@ -90,9 +90,9 @@ class Scenario():
         self.prop_carve_out = prop_carve_out
         
         #input data from files
-        self.clinic_demand = pd.read_csv(demand_file)
-        self.weekly_slots = pd.read_csv(slots_file)
-        self.pooling_np = pd.read_csv(pooling_file).to_numpy().T[1:].T
+        self.clinic_demand = demand_file
+        self.weekly_slots = slots_file
+        self.pooling_np = pooling_file.to_numpy().T[1:].T
         
         #These represent the 'diaries' of bookings
         
