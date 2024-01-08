@@ -26,7 +26,7 @@ https://github.com/Bergam0t/simpy_visualisation/assets/29951987/a4df0014-cd78-44
 
 - a community mental health pathway 
 
-https://github.com/Bergam0t/simpy_visualisation/assets/29951987/62e40ad3-6c66-45f9-a091-8749bafcd650
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/c87ee4d5-94b1-4e0b-a616-1ba2657fd20c
 
 # Creating a visualisation from an existing model
 
