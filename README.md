@@ -16,15 +16,15 @@ Plotly is leveraged to create the final animation, meaning that users can benefi
 The code has been designed to be flexible and could potentially be used with alternative simulation packages such as ciw or simmer if it is possible to provide all of the required details in the logs that are output.
 
 To develop and demonstrate the concept, it has so far been used to incorporate visualisation into three existing simpy models that were not initially designed with this sort of visualisation in mind: 
-- a minor injuries unit
+- **a minor injuries unit**, showing the utility of the model at high resolutions with branching pathways and the ability to add in a custom background to clearly demarcate process steps
 
 https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/29951987/1adc36a0-7bc0-4808-8d71-2d253a855b31
 
-- an elective surgical pathway (with a focus on cancelled theatre slots due to bed unavailability in recovery areas)  
+- **an elective surgical pathway** (with a focus on cancelled theatre slots due to bed unavailability in recovery areas), with length of stay displayed as well as additional text and graphical data  
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/12e5cf33-7ce3-4f76-b621-62ab49903113
 
-- a community mental health pathway 
+- **a community mental health pathway**, showing the wait to an appointment as well as highlighting 'urgent' patients with a different icon. 
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/80467f76-90c2-43db-bf44-41ec8f4d3abd
 
