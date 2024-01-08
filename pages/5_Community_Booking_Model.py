@@ -85,7 +85,7 @@ if button_run_pressed:
         full_patient_df = reshape_for_animations(event_log_as_is_df,
                                                  limit_duration=180,
                                                  every_x_time_units=1,
-                                                 step_snapshot_max=150)
+                                                 step_snapshot_max=100)
 
         clinics =  [x for x in event_log_as_is_df['booked_clinic'].sort_values().unique().tolist() if not math.isnan(x)]
 
@@ -111,7 +111,7 @@ if button_run_pressed:
                             full_patient_df=full_patient_df,
                             event_position_df=event_position_df,
                             wrap_queues_at=50,
-                            step_snapshot_max=150,
+                            step_snapshot_max=100,
                             gap_between_entities=13,
                             gap_between_resources=15,
                             gap_between_rows=15,
