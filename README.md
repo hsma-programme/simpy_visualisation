@@ -11,17 +11,18 @@ Visual display of the outputs of discrete event simulations in simpy have been i
 
 This repository contains code allowing visually appealing, flexible visualisations of discrete event simulations to be created from simpy models, such as the example below: 
 
-https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/29951987/1adc36a0-7bc0-4808-8d71-2d253a855b31
-
 Plotly is leveraged to create the final animation, meaning that users can benefit from the ability to further customise or extend the plotly plot, as well as easily integrating with web frameworks such as Streamlit, Dash or Shiny for Python.
 
 The code has been designed to be flexible and could potentially be used with alternative simulation packages such as ciw or simmer if it is possible to provide all of the required details in the logs that are output.
 
-It has so far been used to visualise 
-- a minor injuries unit (shown above)
+To develop and demonstrate the concept, it has so far been used to incorporate visualisation into three existing simpy models that were not initially designed with this sort of visualisation in mind: 
+- a minor injuries unit
+
+https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/29951987/1adc36a0-7bc0-4808-8d71-2d253a855b31
+
 - an elective surgical pathway (with a focus on cancelled theatre slots due to bed unavailability in recovery areas)  
 
-https://github.com/Bergam0t/simpy_visualisation/assets/29951987/2dea4a7a-e805-4e0b-a579-7347c9aed0d4
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/a4df0014-cd78-444e-9387-2b0d95dae33d
 
 - a community mental health pathway 
 
