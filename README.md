@@ -22,11 +22,11 @@ https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/2995198
 
 - an elective surgical pathway (with a focus on cancelled theatre slots due to bed unavailability in recovery areas)  
 
-https://github.com/Bergam0t/simpy_visualisation/assets/29951987/a4df0014-cd78-444e-9387-2b0d95dae33d
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/12e5cf33-7ce3-4f76-b621-62ab49903113
 
 - a community mental health pathway 
 
-https://github.com/Bergam0t/simpy_visualisation/assets/29951987/c87ee4d5-94b1-4e0b-a616-1ba2657fd20c
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/80467f76-90c2-43db-bf44-41ec8f4d3abd
 
 # Creating a visualisation from an existing model
 
