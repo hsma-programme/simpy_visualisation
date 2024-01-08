@@ -17,6 +17,16 @@ Plotly is leveraged to create the final animation, meaning that users can benefi
 
 The code has been designed to be flexible and could potentially be used with alternative simulation packages such as ciw or simmer if it is possible to provide all of the required details in the logs that are output.
 
+It has so far been used to visualise 
+- a minor injuries unit (shown above)
+- an elective surgical pathway (with a focus on cancelled theatre slots due to bed unavailability in recovery areas)  
+
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/2dea4a7a-e805-4e0b-a579-7347c9aed0d4
+
+- a community mental health pathway 
+
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/62e40ad3-6c66-45f9-a091-8749bafcd650
+
 # Creating a visualisation from an existing model
 
 Two key things need to happen to existing models to work with the visualisation code:
