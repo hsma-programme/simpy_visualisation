@@ -7,5 +7,5 @@ def single_run(args, rep=0):
     model = AssessmentReferralModel(args)
     model.run()
     model.process_run_results()
-    
+
     return model.results_all, model.results_low, model.results_high, model.event_log
