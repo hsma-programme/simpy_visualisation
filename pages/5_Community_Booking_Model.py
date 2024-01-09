@@ -33,6 +33,9 @@ scenario_choice = st.selectbox(
     'Choose a Scenario',
     ('As-is', 'With Pooling', 'With Pooling - No Carve-out'))
 
+if scenario_choice == "As-is" or scenario_choice == "With Pooling":
+    prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.15, 0.01)
+
 #depending on settings and CPU this model takes around 15-20 seconds to run
 
 button_run_pressed = st.button("Run simulation")
@@ -54,13 +57,13 @@ if button_run_pressed:
 
         scenarios['as-is'] = Scenario(RUN_LENGTH,
                                       WARM_UP,
-                                      prop_carve_out=0.15,
+                                      prop_carve_out=prop_carve_out,
                                       seeds=generate_seed_vector(),
                                       slots_file=shifts_edited)
 
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
-                                       prop_carve_out=0.15,
+                                       prop_carve_out=prop_carve_out,
                                        pooling=True,
                                        seeds=generate_seed_vector(),
                                        slots_file=shifts_edited)
@@ -91,20 +94,26 @@ if button_run_pressed:
 
         event_log_df = pd.DataFrame(event_log)
 
+
         event_log_df['event_original'] = event_log_df['event']
         event_log_df['event'] = event_log_df.apply(lambda x: f"{x['event']}{f'_{int(x.booked_clinic)}' if pd.notna(x['booked_clinic']) else ''}", axis=1)
 
         full_patient_df = reshape_for_animations(event_log_df,
-                                                 limit_duration=180,
+                                                 limit_duration=WARM_UP+180,
                                                  every_x_time_units=1,
-                                                 step_snapshot_max=100)
+                                                 step_snapshot_max=50)
+
+        # Remove the warm-up period from the event log
+        full_patient_df = full_patient_df[full_patient_df["minute"] >= WARM_UP]
+
 
         clinics =  [x for x in event_log_df['booked_clinic'].sort_values().unique().tolist() if not math.isnan(x)]
 
         clinic_waits = [{'event': f'appointment_booked_waiting_{int(clinic)}',
           'y':  950-(clinic+1)*80,
           'x': 625,
-          'label': f"Booked into<br>clinic {int(clinic)}"}
+          'label': f"Booked into<br>clinic {int(clinic)}",
+          'clinic': int(clinic)}
           for clinic in clinics]
 
         clinic_attends = [{'event': f'have_appointment_{int(clinic)}',
@@ -115,24 +124,95 @@ if button_run_pressed:
 
         event_position_df = pd.concat([pd.DataFrame(clinic_waits),(pd.DataFrame(clinic_attends))])
 
+        referred_out = [{'event': f'referred_out_{int(clinic)}',
+          'y':  950-(clinic+1)*80,
+          'x': 125,
+          'label': f"Referred Out From <br>clinic {int(clinic)}"}
+          for clinic in clinics]
+
+        event_position_df = pd.concat([event_position_df,(pd.DataFrame(referred_out))])
+
         # event_position_df = pd.concat([
         #     event_position_df,
         #     pd.DataFrame([{'event': 'exit', 'x':  270, 'y': 70, 'label': "Exit"}])]) .reset_index(drop=True)
 
+        clinic_lkup_df = pd.DataFrame([
+            {'clinic': 0, 'icon': "🟠"},
+            {'clinic': 1, 'icon': "🟡"},
+            {'clinic': 2, 'icon': "🟢"},
+            {'clinic': 3, 'icon': "🔵"},
+            {'clinic': 4, 'icon': "🟣"},
+            {'clinic': 5, 'icon': "🟤"},
+            {'clinic': 6, 'icon': "⚫"},
+            {'clinic': 7, 'icon': "⚪"},
+            {'clinic': 8, 'icon': "🔶"},
+            {'clinic': 9, 'icon': "🔷"},
+            {'clinic': 10, 'icon': "🟩"}
+        ])
+
+
+        if scenario_choice == "With Pooling" or scenario_choice == "With Pooling - No Carve-out":
+            event_position_df = event_position_df.merge(clinic_lkup_df, how="left")
+            event_position_df["label"] = event_position_df.apply(lambda x: f"{x['label']} {x['icon']}" if pd.notna(x['icon']) else x['label'], axis=1)
+            event_position_df = event_position_df.drop(columns="icon")
+
+        event_position_df = event_position_df.drop(columns="clinic")
+
         full_patient_df_plus_pos = generate_animation_df(
                             full_patient_df=full_patient_df,
                             event_position_df=event_position_df,
-                            wrap_queues_at=50,
-                            step_snapshot_max=100,
-                            gap_between_entities=13,
+                            wrap_queues_at=25,
+                            step_snapshot_max=50,
+                            gap_between_entities=15,
                             gap_between_resources=15,
                             gap_between_rows=15,
                             debug_mode=True
                     )
 
+
+
+        if scenario_choice == "With Pooling" or scenario_choice == "With Pooling - No Carve-out":
+            def show_home_clinic(row):
+                if "more" not in row["icon"]:
+                    if row["home_clinic"] == 0:
+                        return "🟠"
+                    if row["home_clinic"] == 1:
+                        return "🟡"
+                    if row["home_clinic"] == 2:
+                        return "🟢"
+                    if row["home_clinic"] == 3:
+                        return "🔵"
+                    if row["home_clinic"] == 4:
+                        return "🟣"
+                    if row["home_clinic"] == 5:
+                        return "🟤"
+                    if row["home_clinic"] == 6:
+                        return "⚫"
+                    if row["home_clinic"] == 7:
+                        return "⚪"
+                    if row["home_clinic"] == 8:
+                        return "🔶"
+                    if row["home_clinic"] == 9:
+                        return "🔷"
+                    if row["home_clinic"] == 10:
+                        return "🟩"
+                    else:
+                        return row["icon"]
+                else:
+                    return row["icon"]
+
+            full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(show_home_clinic, axis=1))
+
+
         def show_priority_icon(row):
-            if row["pathway"] == 2:
-                return "🚨"
+            if "more" not in row["icon"]:
+                if row["pathway"] == 2:
+                    if scenario_choice == "As-is":
+                        return "🚨"
+                    else:
+                        return f"{row['icon']}*"
+                else:
+                    return row["icon"]
             else:
                 return row["icon"]
 
@@ -142,10 +222,13 @@ if button_run_pressed:
             else:
                 return row["icon"]
 
-        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(show_priority_icon, axis=1))
+        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(
+            icon=full_patient_df_plus_pos.apply(show_priority_icon, axis=1)
+            )
 
-        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1))
-
+        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(
+            icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1)
+            )
 
         fig = generate_animation(
             full_patient_df_plus_pos=full_patient_df_plus_pos,
