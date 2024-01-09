@@ -680,6 +680,7 @@ class AssessmentReferralModel(object):
                         'pathway': "Unsuitable for service",
                         'event_type': 'arrival_departure',
                         'event': 'arrival',
+                        'home_clinic': int(clinic_id),
                         'time': self.env.now
                         }
                     )
@@ -688,7 +689,8 @@ class AssessmentReferralModel(object):
                         {'patient': f"{t}_{i}",
                         'pathway': "Unsuitable for service",
                         'event_type': 'queue',
-                        'event': 'referred_out',
+                        'event': f'referred_out_{clinic_id}',
+                        'home_clinic': int(clinic_id),
                         'time': self.env.now
                         }
                     )
@@ -698,7 +700,8 @@ class AssessmentReferralModel(object):
                         'pathway': "Unsuitable for service",
                         'event_type': 'arrival_departure',
                         'event': 'depart',
-                        'time': self.env.now
+                        'home_clinic': int(clinic_id),
+                        'time': self.env.now + 1
                         }
                     )
 
