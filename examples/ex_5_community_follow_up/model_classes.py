@@ -693,7 +693,7 @@ class PatientReferral(object):
         if self.priority == 2:
             follow_up_y = self.args.follow_up_dist_high_priority.sample()
         else:
-            print("Error - Unknown priority value received")
+            print(f"Error - Unknown priority value received ({self.priority})")
 
         # print(follow_up_y)
 
@@ -746,6 +746,7 @@ class PatientReferral(object):
                     'booked_clinic': int(self.booked_clinic),
                     'home_clinic': int(self.home_clinic),
                     'follow_up': i,
+                    'follow_up_intensity': 'high' if follow_up_intensity == 1 else 'low',
                     'follow_ups_intended': num_appts,
                     'time': self.env.now
                     }
@@ -767,6 +768,7 @@ class PatientReferral(object):
                     'time': self.env.now,
                     'type': "follow-up",
                     'follow_up': i,
+                    'follow_up_intensity': 'high' if follow_up_intensity == 1 else 'low',
                     'follow_ups_intended': num_appts,
                     'interval': interval
                     }
