@@ -29,7 +29,7 @@ st.markdown("Edit the number of daily slots available per clinic by clicking in 
 shifts = pd.read_csv("examples/ex_4_community/data/shifts.csv")
 shifts_edited = st.data_editor(shifts)
 
-annual_demand = st.slider("Select annual demand", 1, 3000, 1500, 10)
+annual_demand = st.slider("Select average annual demand", 1, 3000, 1500, 10)
 
 scenario_choice = st.selectbox(
     'Choose a Scenario',
@@ -84,15 +84,18 @@ if button_run_pressed:
 
         if scenario_choice == "As-is":
             st.subheader("As-is")
+            st.markdown("### Wait for initial appointment")
             results_all, results_low, results_high, event_log = single_run(scenarios['as-is'])
             st.dataframe(results_summary(results_all, results_low, results_high))
         elif scenario_choice == "With Pooling":
             st.subheader("With Pooling")
+            st.markdown("### Wait for initial appointment")
             results_all, results_low, results_high, event_log = single_run(scenarios['pooled'])
             st.dataframe(results_summary(results_all, results_low, results_high))
 
         elif scenario_choice == "With Pooling - No Carve-out":
             st.subheader("Pooled with no carve out")
+            st.markdown("### Wait for initial appointment")
             results_all, results_low, results_high, event_log = single_run(scenarios['no_carve_out'])
             st.dataframe(results_summary(results_all, results_low, results_high))
 
@@ -277,8 +280,25 @@ if button_run_pressed:
 
         st.plotly_chart(fig)
 
-        st.dataframe(event_log_df)
+        # st.dataframe(event_log_df)
 
+        # Average interval for low intensity and high intensity
+        st.subheader("Are the intervals between appointments correct?")
+        st.markdown("""
+        Goal:
+
+        LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
+        HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
+        """)
+
+        st.dataframe(
+            event_log_df
+            .dropna(subset='follow_up_intensity')
+            .query('event_original == "have_appointment"')
+            .groupby('follow_up_intensity')['interval']
+            .describe()
+            .T
+        )
     # fig.show()
 
 #TODO
