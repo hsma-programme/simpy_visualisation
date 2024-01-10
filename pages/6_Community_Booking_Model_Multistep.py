@@ -6,9 +6,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from examples.ex_4_community.model_classes import Scenario, generate_seed_vector
-from examples.ex_4_community.simulation_execution_functions import single_run
-from examples.ex_4_community.simulation_summary_functions import results_summary
+from examples.ex_5_community_follow_up.model_classes import Scenario, generate_seed_vector
+from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
+from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
 # from plotly.subplots import make_subplots
 
@@ -28,6 +28,8 @@ st.subheader("Weekly Slots")
 st.markdown("Edit the number of daily slots available per clinic by clicking in the boxes below, or leave as the default schedule")
 shifts = pd.read_csv("examples/ex_4_community/data/shifts.csv")
 shifts_edited = st.data_editor(shifts)
+
+annual_demand = st.slider("Select annual demand", 1, 3000, 1500, 10)
 
 scenario_choice = st.selectbox(
     'Choose a Scenario',
@@ -59,21 +61,24 @@ if button_run_pressed:
                                       WARM_UP,
                                       prop_carve_out=prop_carve_out,
                                       seeds=generate_seed_vector(),
-                                      slots_file=shifts_edited)
+                                      slots_file=shifts_edited,
+                                      annual_demand=annual_demand)
 
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
                                        prop_carve_out=prop_carve_out,
                                        pooling=True,
                                        seeds=generate_seed_vector(),
-                                       slots_file=shifts_edited)
+                                       slots_file=shifts_edited,
+                                      annual_demand=annual_demand)
 
         scenarios['no_carve_out'] = Scenario(RUN_LENGTH,
                                              WARM_UP,
                                              pooling=True,
                                              prop_carve_out=0.0,
                                              seeds=generate_seed_vector(),
-                                             slots_file=shifts_edited)
+                                             slots_file=shifts_edited,
+                                             annual_demand=annual_demand)
 
         col1, col2, col3 = st.columns(3)
 
@@ -101,29 +106,38 @@ if button_run_pressed:
         full_patient_df = reshape_for_animations(event_log_df,
                                                  limit_duration=WARM_UP+180,
                                                  every_x_time_units=1,
-                                                 step_snapshot_max=50)
+                                                 step_snapshot_max=30)
 
         # Remove the warm-up period from the event log
         full_patient_df = full_patient_df[full_patient_df["minute"] >= WARM_UP]
 
+        #####################################################
+        # Create the positioning dataframe for the animation
+        #####################################################
 
+        # Create a list of clinics
         clinics =  [x for x in event_log_df['booked_clinic'].sort_values().unique().tolist() if not math.isnan(x)]
 
+        # Create a column of positions for people waiting for their initial appointment with the clinic
         clinic_waits = [{'event': f'appointment_booked_waiting_{int(clinic)}',
           'y':  950-(clinic+1)*80,
-          'x': 625,
-          'label': f"Booked into<br>clinic {int(clinic)}",
+          'x': 475,
+          'label': f"Booked for<br>assessment at<br>clinic {int(clinic)}",
           'clinic': int(clinic)}
           for clinic in clinics]
 
+        # Create a column of positions for people having an appointment with the clinic
         clinic_attends = [{'event': f'have_appointment_{int(clinic)}',
           'y':  950-(clinic+1)*80,
-          'x': 850,
+          'x': 700,
           'label': f"Attending appointment<br>at clinic {int(clinic)}"}
           for clinic in clinics]
 
+        # Join these dataframes
         event_position_df = pd.concat([pd.DataFrame(clinic_waits),(pd.DataFrame(clinic_attends))])
 
+        # Create a column of positions for people being referred to another service (triaged as inappropriate
+        # for this service after their initial referral and before an appointment is booked)
         referred_out = [{'event': f'referred_out_{int(clinic)}',
           'y':  950-(clinic+1)*80,
           'x': 125,
@@ -131,6 +145,16 @@ if button_run_pressed:
           for clinic in clinics]
 
         event_position_df = pd.concat([event_position_df,(pd.DataFrame(referred_out))])
+
+        # Create a column of positions for people who have had their initial appointment and are now waiting for a
+        # booked follow-up appointment to take place
+        follow_up_waiting = [{'event': f'follow_up_appointment_booked_waiting_{int(clinic)}',
+          'y':  950-(clinic+1)*80,
+          'x': 1100,
+          'label': f"On books - awaiting next<br>appointment with<br>clinic {int(clinic)}"}
+          for clinic in clinics]
+
+        event_position_df = pd.concat([event_position_df,(pd.DataFrame(follow_up_waiting))])
 
         # event_position_df = pd.concat([
         #     event_position_df,
@@ -161,8 +185,8 @@ if button_run_pressed:
         full_patient_df_plus_pos = generate_animation_df(
                             full_patient_df=full_patient_df,
                             event_position_df=event_position_df,
-                            wrap_queues_at=25,
-                            step_snapshot_max=50,
+                            wrap_queues_at=15,
+                            step_snapshot_max=30,
                             gap_between_entities=15,
                             gap_between_resources=15,
                             gap_between_rows=15,
@@ -226,17 +250,17 @@ if button_run_pressed:
             icon=full_patient_df_plus_pos.apply(show_priority_icon, axis=1)
             )
 
-        full_patient_df_plus_pos = full_patient_df_plus_pos.assign(
-            icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1)
-            )
+        # full_patient_df_plus_pos = full_patient_df_plus_pos.assign(
+        #     icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1)
+        #     )
 
         fig = generate_animation(
             full_patient_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=None,
-            plotly_height=850,
+            plotly_height=950,
             plotly_width=1100,
-            override_x_max=1000,
+            override_x_max=1200,
             override_y_max=1000,
             icon_and_text_size=10,
             # gap_between_resources=15,
@@ -252,6 +276,8 @@ if button_run_pressed:
         )
 
         st.plotly_chart(fig)
+
+        st.dataframe(event_log_df)
 
     # fig.show()
 

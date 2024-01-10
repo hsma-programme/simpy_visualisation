@@ -1,4 +1,4 @@
-from examples.ex_4_community.model_classes import AssessmentReferralModel
+from examples.ex_5_community_follow_up.model_classes import AssessmentReferralModel
 
 def single_run(args, rep=0):
     '''

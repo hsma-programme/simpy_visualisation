@@ -5,7 +5,6 @@ This is used to build a model of the queuing and scheduling
 at a mental health assessment network across in Devon
 
 '''
-
 import pandas as pd
 import numpy as np
 import itertools
@@ -38,13 +37,13 @@ HIGH_PRIORITY_MIN_WAIT = 2
 PROP_HIGH_PRORITY= 0.15
 PROP_CARVE_OUT = 0.15
 
-# What proportion of people initially graded as *high* intensity
+# What proportion of people initially graded as *high* priority
 # go on to have ongoing appointments?
 PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS = 0.95
 
-# What proportion of people initially graded as *low* intensity
+# What proportion of people initially graded as *low* priority
 # go on to have ongoing appointments?
-PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS = 0.8
+PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS = 0.8
 
 # What proportion of people initially graded as *high*
 # priority go on to have high intensity therapy?
@@ -55,6 +54,9 @@ PROP_LOW_PRIORITY_HIGH_INTENSITY = 0.2
 
 MEAN_FOLLOW_UPS_HIGH_INTENSITY = 10
 MEAN_FOLLOW_UPS_LOW_INTENSITY = 6
+
+LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
+HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
 
 #targets in working days
 TARGET_HIGH = 5
@@ -75,8 +77,10 @@ class Scenario():
     '''
     Arguments represent a configuration of the simulation model.
     '''
-    def __init__(self, run_length, warm_up=0.0, pooling=False, prop_carve_out=0.15,
+    def __init__(self, run_length,
+                 warm_up=0.0, pooling=False, prop_carve_out=0.15,
                  demand_file=None, slots_file=None, pooling_file=None,
+                 annual_demand=ANNUAL_DEMAND,
                  seeds=None):
 
         if seeds is None:
@@ -128,7 +132,7 @@ class Scenario():
 
         #sampling distributions
         # Arrival rate of patients to the service
-        self.arrival_dist = Poisson(ANNUAL_DEMAND / 52 / 5,
+        self.arrival_dist = Poisson(annual_demand / 52 / 5,
                                     random_seed=self.seeds[0])
         # Initial priority setting for assessment
         self.priority_dist = Bernoulli(PROP_HIGH_PRORITY,
@@ -136,10 +140,10 @@ class Scenario():
 
         # Determining whether people will have follow-up appointments
         self.follow_up_dist_high_priority = Bernoulli(
-            PROP_HIGH_PRIORITY_HIGH_INTENSITY,
+            PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS,
             random_seed=self.seeds[2])
         self.follow_up_dist_low_priority = Bernoulli(
-            PROP_LOW_PRIORITY_HIGH_INTENSITY,
+            PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS,
             random_seed=self.seeds[3])
 
         # Setting intensity (frequency) of follow-up appointments
@@ -676,6 +680,7 @@ class PatientReferral(object):
              'event': 'have_appointment',
              'booked_clinic': int(self.booked_clinic),
              'home_clinic': int(self.home_clinic),
+             'type': "assessment",
              'time': self.env.now,
              'wait': self.waiting_time
              }
@@ -690,27 +695,97 @@ class PatientReferral(object):
         else:
             print("Error - Unknown priority value received")
 
+        # print(follow_up_y)
+
         # Sample whether they will need high-intensity follow-up
         # (every 7 days) or low-intensity follow-up (every 21 days)
         if follow_up_y:
+            # self.event_log.append(
+            #         {'patient': self.identifier,
+            #         'pathway': self.priority,
+            #         'event_type': 'attribute',
+            #         'event': 'follow_ups_required',
+            #         'booked_clinic': int(self.booked_clinic),
+            #         'home_clinic': int(self.home_clinic),
+            #         'time': self.env.now
+            #         }
+            #     )
             if self.priority == 1:
                 follow_up_intensity = self.args.intensity_dist_low_priority.sample()
             if self.priority == 2:
                 follow_up_intensity = self.args.intensity_dist_high_priority.sample()
+            else:
+                print("Error - Unknown priority value received")
 
             # Now sample how many follow-up appointments they need
             if follow_up_intensity == 1:
-                num_appts = self.args.num_follow_up_dist_high_intensity.sample()
-                repeat_booker = RepeatBooker(ideal_frequency=,
-                                             clinic_id=self.booked_clinic)
+                num_appts = int(self.args.num_follow_up_dist_high_intensity.sample())
+                repeat_booker = RepeatBooker(
+                    ideal_frequency=HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
+                    args = self.args,
+                    clinic_id=self.booked_clinic)
             else:
-                num_appts = self.args.num_follow_up_dist_low_intensity.sample()
-                repeat_booker = RepeatBooker(ideal_frequency=,
-                                clinic_id=self.booked_clinic)
+                num_appts = int(self.args.num_follow_up_dist_low_intensity.sample())
+                repeat_booker = RepeatBooker(
+                    args = self.args,
+                    ideal_frequency=LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
+                    clinic_id=self.booked_clinic)
 
+            for i in range(num_appts):
+                best_t, clinic = \
+                    repeat_booker.find_slot(self.env.now)
 
-            while i <= num_appts:
+                #book slot at clinic = time of referral + waiting_time
+                repeat_booker.book_slot(best_t)
 
+                self.event_log.append(
+                    {'patient': self.identifier,
+                    'pathway': self.priority,
+                    'event_type': 'queue',
+                    'event': 'follow_up_appointment_booked_waiting',
+                    'booked_clinic': int(self.booked_clinic),
+                    'home_clinic': int(self.home_clinic),
+                    'follow_up': i,
+                    'follow_ups_intended': num_appts,
+                    'time': self.env.now
+                    }
+                )
+
+                interval = best_t - self.env.now
+
+                #wait for appointment
+                yield self.env.timeout(best_t - self.env.now)
+
+                # Use appointment
+                self.event_log.append(
+                    {'patient': self.identifier,
+                    'pathway': self.priority,
+                    'event_type': 'queue',
+                    'event': 'have_appointment',
+                    'booked_clinic': int(self.booked_clinic),
+                    'home_clinic': int(self.home_clinic),
+                    'time': self.env.now,
+                    'type': "follow-up",
+                    'follow_up': i,
+                    'follow_ups_intended': num_appts,
+                    'interval': interval
+                    }
+                )
+
+                i += 1
+
+                # Repeat this loop until all predefined appointments have taken place
+        # else:
+        #                 self.event_log.append(
+        #         {'patient': self.identifier,
+        #         'pathway': self.priority,
+        #         'event_type': 'attribute',
+        #         'event': 'follow_ups_not_required',
+        #         'booked_clinic': int(self.booked_clinic),
+        #         'home_clinic': int(self.home_clinic),
+        #         'time': self.env.now
+        #         }
+        #     )
 
         self.event_log.append(
             {'patient': self.identifier,
@@ -815,7 +890,7 @@ class AssessmentReferralModel(object):
                     #create instance of PatientReferral
                     patient = PatientReferral(self.env, self.args,
                                               referral_t=t,
-                                              clinic_id=clinic_id,
+                                              home_clinic=clinic_id,
                                               booker=assessment_booker,
                                               event_log=self.event_log,
                                               identifier=f"{t}_{i}")
