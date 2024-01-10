@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import simpy
+import random
 
 from examples.distribution_classes import Bernoulli, Discrete, Poisson, Lognormal
 
@@ -62,6 +63,12 @@ HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
 TARGET_HIGH = 5
 TARGET_LOW = 20
 
+# MAXIMUM WAIT FOR APPOINTMENT FROM BOOKING
+# This will be used to decide whether to book, or whether to wait until an
+# appointment less far in the future is available
+BOOKING_TIME_THRESHOLD = 6*6
+
+
 class Clinic():
     '''
     A clinic has a probability of refering patients
@@ -90,13 +97,13 @@ class Scenario():
 
         #use default files?
         if pooling_file is None:
-            pooling_file = pd.read_csv('examples/ex_4_community/data/partial_pooling.csv')
+            pooling_file = pd.read_csv('examples/ex_5_community_follow_up/data/partial_pooling.csv')
 
         if demand_file is None:
-            demand_file = pd.read_csv('examples/ex_4_community/data/referrals.csv')
+            demand_file = pd.read_csv('examples/ex_5_community_follow_up/data/referrals.csv')
 
         if slots_file is None:
-            slots_file = pd.read_csv('examples/ex_4_community/data/shifts.csv')
+            slots_file = pd.read_csv('examples/ex_5_community_follow_up/data/shifts.csv')
 
         #useful if you want to record anything during a model run.
         self.debug = []
@@ -271,7 +278,13 @@ class LowPriorityPooledBooker():
         best_t = np.where((clinic_slots.sum(axis=1) > 0))[0][0]
 
         #get the index of the best clinic option.
-        best_clinic_idx = clinic_options[clinic_slots[best_t, :] > 0][0]
+        # To ensure it's not always the first available clinician with availability
+        # (as this can lead to odd behaviour with e.g. clinicians earlier in the list
+        # getting all of the emergency patients when multiple clinicians have availability
+        # on the same day)
+        clinic_sample = random.randint(0, len(clinic_options[clinic_slots[best_t, :] > 0])-1)
+
+        best_clinic_idx = clinic_options[clinic_slots[best_t, :] > 0][clinic_sample]
 
         #return (best_t, booked_clinic_id)
         return best_t + self.min_wait + t, best_clinic_idx
@@ -498,7 +511,13 @@ class HighPriorityPooledBooker():
         best_t = np.where((clinic_slots.sum(axis=1) > 0))[0][0]
 
         #get the index of the best clinic option.
-        best_clinic_idx = clinic_options[clinic_slots[best_t, :] > 0][0]
+        # To ensure it's not always the first available clinician with availability
+        # (as this can lead to odd behaviour with e.g. clinicians earlier in the list
+        # getting all of the emergency patients when multiple clinicians have availability
+        # on the same day)
+        clinic_sample = random.randint(0, len(clinic_options[clinic_slots[best_t, :] > 0])-1)
+
+        best_clinic_idx = clinic_options[clinic_slots[best_t, :] > 0][clinic_sample]
 
         #return (best_t, best_clinic_id)
         return best_t + self.min_wait + t, best_clinic_idx
@@ -611,6 +630,7 @@ class PatientReferral(object):
         self.referral_t = referral_t
         self.home_clinic = home_clinic
         self.booked_clinic = home_clinic
+        self.in_booking_queue = False
 
         self.booker = booker
 
@@ -645,24 +665,73 @@ class PatientReferral(object):
              'time': self.env.now}
         )
 
-
-        #get slot for clinic
-        best_t, self.booked_clinic = \
-            self.booker.find_slot(self.referral_t, self.home_clinic)
-
-        #book slot at clinic = time of referral + waiting_time
-        self.booker.book_slot(best_t, self.booked_clinic)
-
         self.event_log.append(
-            {'patient': self.identifier,
-             'pathway': self.priority,
-             'event_type': 'queue',
-             'event': 'appointment_booked_waiting',
-             'booked_clinic': int(self.booked_clinic),
-             'home_clinic': int(self.home_clinic),
-             'time': self.env.now
-             }
-        )
+                {'patient': self.identifier,
+                'pathway': self.priority,
+                'event_type': 'queue',
+                'event': 'waiting_appointment_to_be_scheduled',
+                'home_clinic': int(self.home_clinic),
+                'time': self.env.now
+                }
+            )
+
+        # If priority is high, just book next available appointment
+        # regardless of how far in the future it is
+
+        if self.priority == 2:
+            #get slot for clinic
+            best_t, self.booked_clinic = \
+                self.booker.find_slot(self.referral_t, self.home_clinic)
+
+            #book slot at clinic = time of referral + waiting_time
+            self.booker.book_slot(best_t, self.booked_clinic)
+
+            self.event_log.append(
+                {'patient': self.identifier,
+                'pathway': self.priority,
+                'event_type': 'queue',
+                'event': 'appointment_booked_waiting',
+                'booked_clinic': int(self.booked_clinic),
+                'home_clinic': int(self.home_clinic),
+                'time': self.env.now
+                }
+            )
+
+        # if priority is low, check whether an appointment is available in the next six weeks
+        # if it is not, wait one day, and then check again
+        # This is to try and prevent the books becoming overfull, leading to gaps that are too long
+        # Between regular appointments
+        # But need to make sure people in the booking queue get checked again before any new arrivals
+        if self.priority == 1:
+            #get slot for clinic
+            if self.in_booking_queue == False:
+                self.env.timeout(0.1)
+
+            best_t, self.booked_clinic = \
+                self.booker.find_slot(self.referral_t, self.home_clinic)
+
+            if (best_t - self.referral_t) >= BOOKING_TIME_THRESHOLD:
+                self.in_booking_queue=True
+                self.env.timeout(0.9)
+
+            while (best_t - self.referral_t) >= BOOKING_TIME_THRESHOLD:
+                best_t, self.booked_clinic = \
+                    self.booker.find_slot(self.referral_t, self.home_clinic)
+                self.env.timeout(1)
+
+            #book slot at clinic = time of referral + waiting_time
+            self.booker.book_slot(best_t, self.booked_clinic)
+
+            self.event_log.append(
+                {'patient': self.identifier,
+                'pathway': self.priority,
+                'event_type': 'queue',
+                'event': 'appointment_booked_waiting',
+                'booked_clinic': int(self.booked_clinic),
+                'home_clinic': int(self.home_clinic),
+                'time': self.env.now
+                }
+            )
 
         #wait for appointment
         yield self.env.timeout(best_t - self.referral_t)
@@ -688,9 +757,9 @@ class PatientReferral(object):
 
         # First sample whether they will have any follow-up appointments
         # If low priority
-        if self.priority == 1:
+        if int(self.priority) == 1:
             follow_up_y = self.args.follow_up_dist_low_priority.sample()
-        if self.priority == 2:
+        elif int(self.priority) == 2:
             follow_up_y = self.args.follow_up_dist_high_priority.sample()
         else:
             print(f"Error - Unknown priority value received ({self.priority})")
@@ -710,12 +779,12 @@ class PatientReferral(object):
             #         'time': self.env.now
             #         }
             #     )
-            if self.priority == 1:
+            if int(self.priority) == 1:
                 follow_up_intensity = self.args.intensity_dist_low_priority.sample()
-            if self.priority == 2:
+            elif int(self.priority) == 2:
                 follow_up_intensity = self.args.intensity_dist_high_priority.sample()
             else:
-                print("Error - Unknown priority value received")
+                print(f"Error - Unknown priority value received ({self.priority})")
 
             # Now sample how many follow-up appointments they need
             if follow_up_intensity == 1:
@@ -921,7 +990,7 @@ class AssessmentReferralModel(object):
                         {'patient': f"{t}_{i}",
                         'pathway': "Unsuitable for service",
                         'event_type': 'queue',
-                        'event': f'referred_out_{clinic_id}',
+                        'event': 'referred_out',
                         'home_clinic': int(clinic_id),
                         'time': self.env.now
                         }
