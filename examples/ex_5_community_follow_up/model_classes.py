@@ -66,7 +66,7 @@ TARGET_LOW = 20
 # MAXIMUM WAIT FOR APPOINTMENT FROM BOOKING
 # This will be used to decide whether to book, or whether to wait until an
 # appointment less far in the future is available
-BOOKING_TIME_THRESHOLD = 6*6
+BOOKING_TIME_THRESHOLD = 4*7
 
 
 class Clinic():
@@ -630,7 +630,6 @@ class PatientReferral(object):
         self.referral_t = referral_t
         self.home_clinic = home_clinic
         self.booked_clinic = home_clinic
-        self.in_booking_queue = False
 
         self.booker = booker
 
@@ -704,20 +703,42 @@ class PatientReferral(object):
         # But need to make sure people in the booking queue get checked again before any new arrivals
         if self.priority == 1:
             #get slot for clinic
-            if self.in_booking_queue == False:
-                self.env.timeout(0.1)
+            # This is their first time trying to get an appointment
+            # Delay their search slightly to ensure they don't get an appointment ahead of someone
+            # who has been in the queue for longer (who will be checking daily for an available appointment)
+            # becoming available that meets the wait rules
+            # yield self.env.timeout(0.1)
 
+            # First, wait one day so you don't leapfrog ahead of anyone who has been waiting for a while
+            # THIS IS NOT AN IDEAL WORKAROUND - BUT CAN'T GO INTO PARTIAL SIMULATION TIME UNITS
+
+            yield self.env.timeout(1)
+            # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT HERE
+            self.booker.min_wait = self.booker.min_wait - 1
+
+            # Do an initial check for the first available appointment with anyone
             best_t, self.booked_clinic = \
-                self.booker.find_slot(self.referral_t, self.home_clinic)
+                self.booker.find_slot(self.referral_t,
+                                      self.home_clinic
+                                      )
 
+            # If this is too far in the future, time out and wait until tomorrow instead
+            # when a fresh check will be done.
             if (best_t - self.referral_t) >= BOOKING_TIME_THRESHOLD:
-                self.in_booking_queue=True
-                self.env.timeout(0.9)
+                # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT BACK TO THE ORIGINAL LENGTH HERE
+                self.booker.min_wait = self.booker.min_wait + 1
+                yield self.env.timeout(1)
 
-            while (best_t - self.referral_t) >= BOOKING_TIME_THRESHOLD:
+            # Now check again what the best available slot is
+            best_t, self.booked_clinic = \
+                    self.booker.find_slot(self.env.now, self.home_clinic)
+
+            # Continue to check this until
+            while (best_t - self.env.now) >= BOOKING_TIME_THRESHOLD:
+                # print (f"{best_t} at {self.env.now} (wait of {best_t - self.env.now}) for {self.identifier}")
                 best_t, self.booked_clinic = \
-                    self.booker.find_slot(self.referral_t, self.home_clinic)
-                self.env.timeout(1)
+                    self.booker.find_slot(self.env.now, self.home_clinic)
+                yield self.env.timeout(1)
 
             #book slot at clinic = time of referral + waiting_time
             self.booker.book_slot(best_t, self.booked_clinic)

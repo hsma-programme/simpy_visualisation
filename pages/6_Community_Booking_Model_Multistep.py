@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from examples.ex_5_community_follow_up.model_classes import Scenario, generate_seed_vector
 from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
-from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
+from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
 # from plotly.subplots import make_subplots
 
 st.set_page_config(layout="wide",
@@ -64,7 +64,7 @@ if button_run_pressed:
 
         st.subheader("With Pooling")
         st.markdown("### Wait for initial appointment")
-        results_all, results_low, results_high, event_log = single_run(scenarios['pooled'])
+        results_all, results_low, results_high, event_log = single_run(args = scenarios['pooled'])
         st.dataframe(results_summary(results_all, results_low, results_high))
 
         event_log_df = pd.DataFrame(event_log)
@@ -259,6 +259,7 @@ if button_run_pressed:
         Goal:
 
         LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
+
         HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
         """)
 
