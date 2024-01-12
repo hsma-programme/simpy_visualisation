@@ -29,8 +29,8 @@ st.markdown("Edit the number of daily slots available per clinic by clicking in 
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 shifts_edited = st.data_editor(shifts)
 
-annual_demand = st.slider("Select average annual demand", 1, 3000, 1500, 10)
-
+annual_demand = st.slider("Select average annual demand", 100, 1500, 500, 10)
+prop_high_priority = st.slider("Select proportion of high priority", 0.0, 0.9, 0.03, 0.01)
 prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.15, 0.01)
 
 #depending on settings and CPU this model takes around 15-20 seconds to run
@@ -42,11 +42,11 @@ if button_run_pressed:
     # add a spinner and then display success box
     with st.spinner('Simulating the community booking system...'):
 
-        RESULTS_COLLECTION = 365 * 1
+        RESULTS_COLLECTION = 50 * 1
 
         #We will learn about warm-up periods in a later lab.  We use one
         #because the model starts up empty which doesn't reflect reality
-        WARM_UP = 365 * 1
+        WARM_UP = 50
         RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
 
         #set up the scenario for the model to run.
@@ -57,7 +57,8 @@ if button_run_pressed:
                                        prop_carve_out=prop_carve_out,
                                        seeds=generate_seed_vector(),
                                        slots_file=shifts_edited,
-                                      annual_demand=annual_demand)
+                                       prop_high_priority=prop_high_priority,
+                                       annual_demand=annual_demand)
 
         col1, col2, col3 = st.columns(3)
 

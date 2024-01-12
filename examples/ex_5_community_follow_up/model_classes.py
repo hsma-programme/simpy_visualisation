@@ -90,6 +90,7 @@ class Scenario():
                  demand_file=None, slots_file=None,
                  pooling_file=None, existing_caseload_file=None,
                  annual_demand=ANNUAL_DEMAND,
+                 prop_high_priority=PROP_HIGH_PRORITY,
                  seeds=None):
 
         if seeds is None:
@@ -148,7 +149,7 @@ class Scenario():
         self.arrival_dist = Poisson(annual_demand / 52 / 5,
                                     random_seed=self.seeds[0])
         # Initial priority setting for assessment
-        self.priority_dist = Bernoulli(PROP_HIGH_PRORITY,
+        self.priority_dist = Bernoulli(prop_high_priority,
                                        random_seed=self.seeds[1])
 
         # Determining whether people will have follow-up appointments
@@ -331,155 +332,6 @@ class LowPriorityPooledBooker():
 
         #one more patient waiting
         self.args.bookings.iat[booking_t, clinic_id] += 1
-
-# class HighPriorityBooker():
-#     '''
-#     High priority booking process
-
-#     High priority patients are a minority, but require urgent access to services.
-#     They booking process has access to public slots and carve out slots.  High
-#     priority patient still have a delay before booking, but this is typically
-#     small e.g. next day slots.
-#     '''
-#     def __init__(self, args):
-#         '''
-#         Constructor
-
-#         Params:
-#         ------
-#         args: Scenario
-#             simulation input parameters including the booking sheets
-#         '''
-#         self.args = args
-#         self.min_wait = 1
-#         self.priority = 2
-
-#     def find_slot(self, t, clinic_id):
-#         '''
-#         Finds a slot in a diary of available slots
-
-#         High priority patients have access to both
-#         public slots and carve out reserved slots.
-
-#         Params:
-#         ------
-#         t: int,
-#             time t in days
-
-#         clinic_id: int
-#             clinic id is the index  of the clinic column in diary
-
-#         Returns:
-#         -------
-#         (int, int)
-#         (best_t, best_clinic_id)
-#         '''
-
-#         #to reduce runtime - maybe...
-#         available_slots_np = self.args.available_slots.to_numpy()
-#         carve_out_slots_np = self.args.carve_out_slots.to_numpy()
-
-#         #get the clinic slots from t+min_wait days forward
-#         #priority slots
-#         priority_slots = carve_out_slots_np[t+self.min_wait:, clinic_id]
-
-#         #public slots
-#         public_slots = available_slots_np[t+self.min_wait:, clinic_id]
-
-#         #total slots
-#         clinic_slots = priority_slots + public_slots
-
-#         #(best_t, best_clinic_id)
-#         return np.argmax(clinic_slots > 0) + self.min_wait + t, clinic_id
-
-#     def book_slot(self, booking_t, clinic_id):
-#         '''
-#         Book a slot on day t for clinic c
-
-#         A slot is removed from args.carve_out_slots or
-#         args.available_slots if required.
-
-#         A appointment is recorded in args.bookings.iat
-
-#         Params:
-#         ------
-#         booking_t: int
-#             Day of booking
-
-#         clinic_id: int
-#             the clinic identifier
-
-#         '''
-#         #take carve out slot first
-#         if self.args.carve_out_slots.iat[booking_t, clinic_id] > 0:
-#             self.args.carve_out_slots.iat[booking_t, clinic_id] -= 1
-#         else:
-#             #one less public available slot
-#             self.args.available_slots.iat[booking_t, clinic_id] -= 1
-
-#         #one more booking...
-#         self.args.bookings.iat[booking_t, clinic_id] += 1
-
-# class LowPriorityBooker():
-#     '''
-#     Low prioity booking process
-
-#     Low priority patients only have access to public slots and have a minimum
-#     waiting time (e.g. 3 days before a slot can be used.)
-#     '''
-#     def __init__(self, args):
-#         self.args = args
-#         self.min_wait = LOW_PRIORITY_MIN_WAIT
-#         self.priority = 1
-
-#     def find_slot(self, t, clinic_id):
-#         '''
-#         Finds a slot in a diary of available slot
-
-#         Params:
-#         ------
-#         t: int,
-#             time t in days
-
-#         clinic_id: int
-#             clinic id is the index  of the clinic column in diary
-
-#         Returns:
-#         -------
-#         (int, int)
-#         (best_t, best_clinic_id)
-#         '''
-#         #to reduce runtime drop from pandas to numpy
-#         available_slots_np = self.args.available_slots.to_numpy()
-
-#         #get the clinic slots t+min_wait forward for the pooled clinics
-#         clinic_slots = available_slots_np[t+self.min_wait:, clinic_id]
-
-#         # return (best_t, best_clinic_id)
-#         return np.argmax(clinic_slots > 0) + self.min_wait + t, clinic_id
-
-
-#     def book_slot(self, booking_t, clinic_id):
-#         '''
-#         Book a slot on day t for clinic c
-
-#         A slot is removed from args.available_slots
-#         A appointment is recorded in args.bookings.iat
-
-#         Params:
-#         ------
-#         booking_t: int
-#             Day of booking
-
-#         clinic_id: int
-#             the clinic identifier
-#         '''
-#         #one less public available slot
-#         self.args.available_slots.iat[booking_t, clinic_id] -= 1
-
-#         #one more patient waiting
-#         self.args.bookings.iat[booking_t, clinic_id] += 1
-
 class HighPriorityPooledBooker():
     '''
     High prioity booking process for POOLED clinics.
@@ -733,6 +585,7 @@ class PatientReferral(object):
         # But need to make sure people in the booking queue get checked again before any new arrivals
         if self.priority == 1:
             #get slot for clinic
+
             # This is their first time trying to get an appointment
             # Delay their search slightly to ensure they don't get an appointment ahead of someone
             # who has been in the queue for longer (who will be checking daily for an available appointment)
@@ -762,49 +615,54 @@ class PatientReferral(object):
             def check_for_availability():
                 # Then we calculate their theoretical maximum from the slots file
                 caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
-
                 # Then we subtract one from the other to get the available slots
                 # Then subtract one from the theoretical maximum because we want to leave headroom
                 # for emergency clients
                 available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:])- 1
-
                 clinicians_with_slots = len([c for c in available_caseload if c > 0])
-
                 return clinicians_with_slots, available_caseload
 
-            # Check if anyone has capacity
+            # Do an initial check for if anyone has capacity
             # and if they do, check who has the soonest appointment
             # If no-one has capacity, time out and wait until tomorrow instead
             # when a fresh check will be done.
             clinicians_with_slots, available_caseload = check_for_availability()
 
             if clinicians_with_slots > 0:
+                print(f"Clinicians with slots: {clinicians_with_slots}")
                 best_t, self.booked_clinic = \
                     self.booker.find_slot(self.referral_t,
                                         self.home_clinic,
-                                        limit_clinic_choice = [True if c>0 else False for c in available_caseload]
+                                        limit_clinic_choice = [True if c > 0 else False
+                                                               for c
+                                                               in available_caseload]
                                         )
+
             else:
                 # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT BACK TO THE ORIGINAL LENGTH HERE
                 self.booker.min_wait = self.booker.min_wait + 1
+                # As there are no slots available if we've reached this point of the code, let's wait
+                # until the next day
                 yield self.env.timeout(1)
-
                 # Now check if anyone has left the caseload since yesterday and if anyone now has availability
                 clinicians_with_slots, available_caseload = check_for_availability()
-
                 # Continue to check this until someone has availability
                 while clinicians_with_slots == 0:
-                    print(f"client {self.identifier} at {self.env.now} checking for availability")
+                    print(f"client {self.identifier} at {self.env.now} found no availability")
                     yield self.env.timeout(1)
+                    # Recheck availability
                     clinicians_with_slots, available_caseload = check_for_availability()
 
-                # Once loop escaped, we know there's availability, so find thatslot
+                # Once loop escaped, we know there's availability, so find that slot
                 best_t, self.booked_clinic = \
                     self.booker.find_slot(self.env.now, self.home_clinic,
-                                    limit_clinic_choice = [True if c>0 else False for c in available_caseload])
+                                    limit_clinic_choice = [True if c>0 else False
+                                                           for c
+                                                           in available_caseload])
 
             #book slot at clinic = time of referral + waiting_time
             self.booker.book_slot(best_t, self.booked_clinic)
+            print(f"client {self.identifier} seized booking at {self.env.now}")
 
             self.event_log.append(
                 {'patient': self.identifier,
