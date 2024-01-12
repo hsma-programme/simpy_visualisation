@@ -85,7 +85,8 @@ class Scenario():
     Arguments represent a configuration of the simulation model.
     '''
     def __init__(self, run_length,
-                 warm_up=0.0, pooling=False, prop_carve_out=0.15,
+                 warm_up=0.0,
+                 prop_carve_out=0.15,
                  demand_file=None, slots_file=None, pooling_file=None,
                  annual_demand=ANNUAL_DEMAND,
                  seeds=None):
@@ -113,7 +114,7 @@ class Scenario():
         self.warm_up_period = warm_up
 
         #should we pool clinics?
-        self.pooling = pooling
+        self.pooling = True
 
         #proportion of carve out used
         self.prop_carve_out = prop_carve_out
@@ -269,6 +270,14 @@ class LowPriorityPooledBooker():
         available_slots_np = self.args.available_slots.to_numpy()
 
         #get the clinics that are pooled with this one.
+        # This is a leftover from when this model was clinic-level instead of
+        # clinician level - however, it was much quicker to just set it up so that
+        # for the initial appointment, everyone was pooled with everyone else using
+        # the pooling file, rather than rewriting the model to change the logic of
+        # patient arrivals. This is why this code and reference to pooling in places
+        # might feel a bit strange - looking at ex_4_community will help you understand
+        # why it's like this and why that option is very useful in other contexts.
+        # In short - this works fine and it's not worth rewriting in this instance!
         clinic_options = np.where(self.args.pooling_np[clinic_id] == 1)[0]
 
         #get the clinic slots t+min_wait forward for the pooled clinics
@@ -967,17 +976,9 @@ class AssessmentReferralModel(object):
                     high_priority = self.args.priority_dist.sample()
 
                     if high_priority == 1:
-                        #different policy if pooling or not
-                        if self.args.pooling:
-                            assessment_booker = HighPriorityPooledBooker(self.args)
-                        else:
-                            assessment_booker = HighPriorityBooker(self.args)
+                        assessment_booker = HighPriorityPooledBooker(self.args)
                     else:
-                        #different policy if pooling or not
-                        if self.args.pooling:
-                            assessment_booker = LowPriorityPooledBooker(self.args)
-                        else:
-                            assessment_booker = LowPriorityBooker(self.args)
+                        assessment_booker = LowPriorityPooledBooker(self.args)
 
                     #create instance of PatientReferral
                     patient = PatientReferral(self.env, self.args,

@@ -55,14 +55,13 @@ if button_run_pressed:
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
                                        prop_carve_out=prop_carve_out,
-                                       pooling=True,
                                        seeds=generate_seed_vector(),
                                        slots_file=shifts_edited,
                                       annual_demand=annual_demand)
 
         col1, col2, col3 = st.columns(3)
 
-        st.subheader("With Pooling")
+        st.subheader("Clinic Simulation")
         st.markdown("### Wait for initial appointment")
         results_all, results_low, results_high, event_log = single_run(args = scenarios['pooled'])
         st.dataframe(results_summary(results_all, results_low, results_high))
