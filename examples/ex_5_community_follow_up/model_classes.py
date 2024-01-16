@@ -578,11 +578,13 @@ class PatientReferral(object):
                 }
             )
 
-        # if priority is low, check whether an appointment is available in the next six weeks
-        # if it is not, wait one day, and then check again
+        # if priority is low, check whether the clinician has availability to take an additional client
+        # onto their caseload (using the caseload tracking csv, which is updated as patients join/leave caseload)
+        # if all clinicians caseloads are full, wait one day, and then check again
         # This is to try and prevent the books becoming overfull, leading to gaps that are too long
         # Between regular appointments
         # But need to make sure people in the booking queue get checked again before any new arrivals
+        # NOTE: delaying of new arrivals to prioritise people already in the queue has been temporarily commented out
         if self.priority == 1:
             #get slot for clinic
 
@@ -595,9 +597,9 @@ class PatientReferral(object):
             # First, wait one day so you don't leapfrog ahead of anyone who has been waiting for a while
             # THIS IS NOT AN IDEAL WORKAROUND - BUT CAN'T GO INTO PARTIAL SIMULATION TIME UNITS
 
-            yield self.env.timeout(1)
+            # yield self.env.timeout(1)
             # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT HERE
-            self.booker.min_wait = self.booker.min_wait - 1
+            # self.booker.min_wait = self.booker.min_wait - 1
 
             # First calculate the caseload of each clinician
             # Caseload calculation is based on the number of slots they have available
@@ -627,7 +629,6 @@ class PatientReferral(object):
             # If no-one has capacity, time out and wait until tomorrow instead
             # when a fresh check will be done.
             clinicians_with_slots, available_caseload = check_for_availability()
-
             if clinicians_with_slots > 0:
                 print(f"Clinicians with slots: {clinicians_with_slots}")
                 best_t, self.booked_clinic = \
@@ -640,7 +641,7 @@ class PatientReferral(object):
 
             else:
                 # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT BACK TO THE ORIGINAL LENGTH HERE
-                self.booker.min_wait = self.booker.min_wait + 1
+                # self.booker.min_wait = self.booker.min_wait + 1
                 # As there are no slots available if we've reached this point of the code, let's wait
                 # until the next day
                 yield self.env.timeout(1)
@@ -648,7 +649,7 @@ class PatientReferral(object):
                 clinicians_with_slots, available_caseload = check_for_availability()
                 # Continue to check this until someone has availability
                 while clinicians_with_slots == 0:
-                    print(f"client {self.identifier} at {self.env.now} found no availability")
+                    print(f"client {self.identifier} at day {self.env.now} found no availability")
                     yield self.env.timeout(1)
                     # Recheck availability
                     clinicians_with_slots, available_caseload = check_for_availability()
@@ -662,7 +663,7 @@ class PatientReferral(object):
 
             #book slot at clinic = time of referral + waiting_time
             self.booker.book_slot(best_t, self.booked_clinic)
-            print(f"client {self.identifier} seized booking at {self.env.now}")
+            print(f"client {self.identifier} seized booking at day {self.env.now}")
 
             self.event_log.append(
                 {'patient': self.identifier,
@@ -945,6 +946,7 @@ class AssessmentReferralModel(object):
                         'time': self.env.now
                         }
                     )
+                    print(f"Client {t}_{i} referred out - inappropriate referral")
 
                     self.event_log.append(
                         {'patient': f"{t}_{i}",
