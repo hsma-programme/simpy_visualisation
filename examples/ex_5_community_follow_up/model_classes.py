@@ -505,12 +505,13 @@ class PatientReferral(object):
     '''
     def __init__(self, env, args, referral_t, home_clinic,
                  booker,
-                 event_log, identifier):
+                 event_log, identifier, wait_store):
         self.env = env
         self.args = args
         self.referral_t = referral_t
         self.home_clinic = home_clinic
         self.booked_clinic = home_clinic
+        self.wait_store = wait_store
 
         self.booker = booker
 
@@ -529,7 +530,7 @@ class PatientReferral(object):
         '''
         return self.booker.priority
 
-    def execute(self):
+    def execute_referral(self):
         '''
         Patient is referred to clinic
 
@@ -556,136 +557,83 @@ class PatientReferral(object):
                 }
             )
 
+        #########################
+        # Low Priority Patients
+        #########################
+
+        # if priority is low, put into a store so they can wait to be dealt with by
+        # a process that will check whether the clinician has availability to take an additional client
+        # onto their caseload (using the caseload tracking csv, which is updated as patients join/leave caseload)
+        # if all clinicians caseloads are full, the process wait one day, and then check again
+        # This is to try and prevent the books becoming overfull, leading to gaps that are too long
+        # between regular appointments
+        if self.priority == 1:
+            # PUT THEM IN THE STORE AND GO TO THE NEXT PROCESS
+            print(f"Standard Referral {self.identifier} - Putting into referral queue")
+            self.wait_store.put(self)
+            self.event_log.append(
+                {'patient': self.identifier,
+                'pathway': self.priority,
+                'event_type': 'queue',
+                'event': 'waiting_appointment_to_be_scheduled',
+                'booked_clinic': int(self.booked_clinic),
+                'home_clinic': int(self.home_clinic),
+                'time': self.env.now
+                }
+            )
+            # Once they are in the store, the simulation will check once every day how many people can be taken
+            # out of the store and booked in for their assessment and ongoing regular appointments
+
+        #########################
+        # High Priority Patients
+        #########################
+
         # If priority is high, just book next available appointment
         # regardless of how far in the future it is
-
+        # TODO: Add logic to booker to choose clinician with lower
+        # caseload if closest appointment is otherwise on the same day
         if self.priority == 2:
-            #get slot for clinic
-            best_t, self.booked_clinic = \
-                self.booker.find_slot(self.referral_t, self.home_clinic)
+            print(f"Urgent Referral {self.identifier} - Booking next available appointment immediately")
+            # self.execute_assessment_appointment()
+            yield self.env.process(self.execute_assessment_appointment())
 
-            #book slot at clinic = time of referral + waiting_time
-            self.booker.book_slot(best_t, self.booked_clinic)
 
-            self.event_log.append(
-                {'patient': self.identifier,
-                'pathway': self.priority,
-                'event_type': 'queue',
-                'event': 'appointment_booked_waiting',
-                'booked_clinic': int(self.booked_clinic),
-                'home_clinic': int(self.home_clinic),
-                'time': self.env.now
-                }
-            )
+    def execute_assessment_appointment(self):
+        #get slot for clinic
+        best_t, self.booked_clinic = \
+            self.booker.find_slot(self.referral_t, self.home_clinic)
 
-        # if priority is low, check whether the clinician has availability to take an additional client
-        # onto their caseload (using the caseload tracking csv, which is updated as patients join/leave caseload)
-        # if all clinicians caseloads are full, wait one day, and then check again
-        # This is to try and prevent the books becoming overfull, leading to gaps that are too long
-        # Between regular appointments
-        # But need to make sure people in the booking queue get checked again before any new arrivals
-        # NOTE: delaying of new arrivals to prioritise people already in the queue has been temporarily commented out
-        if self.priority == 1:
-            #get slot for clinic
+        #book slot at clinic = time of referral + waiting_time
+        self.booker.book_slot(best_t, self.booked_clinic)
 
-            # This is their first time trying to get an appointment
-            # Delay their search slightly to ensure they don't get an appointment ahead of someone
-            # who has been in the queue for longer (who will be checking daily for an available appointment)
-            # becoming available that meets the wait rules
-            # yield self.env.timeout(0.1)
+        print(f"client {self.identifier} (priority: {self.priority}) seized booking on day {best_t} at day {self.env.now} (Assessment wait: {best_t - self.env.now} days)")
 
-            # First, wait one day so you don't leapfrog ahead of anyone who has been waiting for a while
-            # THIS IS NOT AN IDEAL WORKAROUND - BUT CAN'T GO INTO PARTIAL SIMULATION TIME UNITS
+        self.event_log.append(
+            {'patient': self.identifier,
+            'pathway': self.priority,
+            'event_type': 'queue',
+            'event': 'appointment_booked_waiting',
+            'booked_clinic': int(self.booked_clinic),
+            'home_clinic': int(self.home_clinic),
+            'time': self.env.now
+            }
+        )
 
-            # yield self.env.timeout(1)
-            # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT HERE
-            # self.booker.min_wait = self.booker.min_wait - 1
+        # Update the caseload file for the clinician they've been booked in with
+        # At this point we don't know whether they'll be high or low intensity going forwards
+        # but most high priority patients go on to be high intensity, so adjust the
+        # caseload accordingly - we can always adjust that if they are deemed to be low
+        # frequency after their assessment appointment
+        if self.priority == 2:
+            self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 1
+         # If they are low priority chances are they'll be low intensity, so adjust
+        # the booked clinician's available caseload figures accordingly
+        elif self.priority == 1:
+            self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 0.5
+        else:
+            print(f"Error - unknown priority value passed for patient {self.identifier} ({self.priority})")
 
-            # First calculate the caseload of each clinician
-            # Caseload calculation is based on the number of slots they have available
-            # each week, the number of high intensity patients they have (take up 1 slot per week,
-            # so 1 caseload slot), and the number of low intensity caseload patients they have (take
-            # up 1 slot every other week, so 0.5 caseload slots). Want to leave a buffer of 1 caseload
-            # slot per clinician (i.e. if they have 15 theoretical slots per week but 14 are already taken,
-            # we will count this as full for these purposes - as this leaves some flexibility for
-            # high priority/urgent patients, who will bypass the check and be admitted to caseload anyway)
-
-            # What we need to check is the number of people currently booked for assessment or on the books
-            # with each clinician
-            # this is stored in self.args.existing_caseload
-
-            def check_for_availability():
-                # Then we calculate their theoretical maximum from the slots file
-                caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
-                # Then we subtract one from the other to get the available slots
-                # Then subtract one from the theoretical maximum because we want to leave headroom
-                # for emergency clients
-                available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:])- 1
-                clinicians_with_slots = len([c for c in available_caseload if c > 0])
-                return clinicians_with_slots, available_caseload
-
-            # Do an initial check for if anyone has capacity
-            # and if they do, check who has the soonest appointment
-            # If no-one has capacity, time out and wait until tomorrow instead
-            # when a fresh check will be done.
-            clinicians_with_slots, available_caseload = check_for_availability()
-            if clinicians_with_slots > 0:
-                print(f"Clinicians with slots: {clinicians_with_slots}")
-                best_t, self.booked_clinic = \
-                    self.booker.find_slot(self.referral_t,
-                                        self.home_clinic,
-                                        limit_clinic_choice = [True if c > 0 else False
-                                                               for c
-                                                               in available_caseload]
-                                        )
-
-            else:
-                # TO ACCOUNT FOR WORKAROUND, ADJUST THE MINIMUM WAIT BACK TO THE ORIGINAL LENGTH HERE
-                # self.booker.min_wait = self.booker.min_wait + 1
-                # As there are no slots available if we've reached this point of the code, let's wait
-                # until the next day
-                yield self.env.timeout(1)
-                # Now check if anyone has left the caseload since yesterday and if anyone now has availability
-                clinicians_with_slots, available_caseload = check_for_availability()
-                # Continue to check this until someone has availability
-                while clinicians_with_slots == 0:
-                    print(f"client {self.identifier} at day {self.env.now} found no availability")
-                    yield self.env.timeout(1)
-                    # Recheck availability
-                    clinicians_with_slots, available_caseload = check_for_availability()
-
-                # Once loop escaped, we know there's availability, so find that slot
-                best_t, self.booked_clinic = \
-                    self.booker.find_slot(self.env.now, self.home_clinic,
-                                    limit_clinic_choice = [True if c>0 else False
-                                                           for c
-                                                           in available_caseload])
-
-            #book slot at clinic = time of referral + waiting_time
-            self.booker.book_slot(best_t, self.booked_clinic)
-            print(f"client {self.identifier} seized booking at day {self.env.now}")
-
-            self.event_log.append(
-                {'patient': self.identifier,
-                'pathway': self.priority,
-                'event_type': 'queue',
-                'event': 'appointment_booked_waiting',
-                'booked_clinic': int(self.booked_clinic),
-                'home_clinic': int(self.home_clinic),
-                'time': self.env.now
-                }
-            )
-
-            # Once slot is booked, client is now on caseload for that clinician,
-            # so add to the caseload file
-            # if high priority, likelihood is that they will go on to high intensity
-            # so one caseload slot
-            if self.priority == 2:
-                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 1
-            else:
-                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 1
-
-        #wait for appointment
+        # Wait for this appointment to take place
         yield self.env.timeout(best_t - self.referral_t)
 
         # measure waiting time on day of appointment
@@ -696,49 +644,58 @@ class PatientReferral(object):
         # Use appointment
         self.event_log.append(
             {'patient': self.identifier,
-             'pathway': self.priority,
-             'event_type': 'queue',
-             'event': 'have_appointment',
-             'booked_clinic': int(self.booked_clinic),
-             'home_clinic': int(self.home_clinic),
-             'type': "assessment",
-             'time': self.env.now,
-             'wait': self.waiting_time
-             }
+            'pathway': self.priority,
+            'event_type': 'queue',
+            'event': 'have_appointment',
+            'booked_clinic': int(self.booked_clinic),
+            'home_clinic': int(self.home_clinic),
+            'type': "assessment",
+            'time': self.env.now,
+            'wait': self.waiting_time
+            }
         )
 
+        # Now pass them to the process for booking ongoing regular appointments
+        yield self.env.process(self.ongoing_regular_appointments())
+        # self.ongoing_regular_appointments()
+
+    def ongoing_regular_appointments(self):
         # First sample whether they will have any follow-up appointments
-        # If low priority
-        if int(self.priority) == 1:
+        # Low priority likely to be low intensity
+        # High priority likely to be high intensity
+        if int(self.priority) == 1: # low priority
             follow_up_y = self.args.follow_up_dist_low_priority.sample()
-        elif int(self.priority) == 2:
+        elif int(self.priority) == 2: # high priority
             follow_up_y = self.args.follow_up_dist_high_priority.sample()
         else:
             print(f"Error - Unknown priority value received ({self.priority})")
 
-        # print(follow_up_y)
+        # If they don't have follow-up appointments we can remove them from the caseload and they'll exit the system
+        # At this stage the amount of caseload they take up will have been assumed from their initial priority
+        # (high priority = probably high intensity = 1 caseload slot)
+        # (low priority = probably low intensity = 0.5 caseload slots)
+        if not follow_up_y:
+            print(f"Client {self.identifier} (priority: {self.priority}) assessed as not needing ongoing service")
+            if self.priority == 2: # high
+                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 1
+            else: # low
+                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 0.5
 
+        # If they do have follow-up appointments
         # Sample whether they will need high-intensity follow-up
         # (every 7 days) or low-intensity follow-up (every 21 days)
-        if follow_up_y:
-            # self.event_log.append(
-            #         {'patient': self.identifier,
-            #         'pathway': self.priority,
-            #         'event_type': 'attribute',
-            #         'event': 'follow_ups_required',
-            #         'booked_clinic': int(self.booked_clinic),
-            #         'home_clinic': int(self.home_clinic),
-            #         'time': self.env.now
-            #         }
-            #     )
-            if int(self.priority) == 1:
+        else:
+            if int(self.priority) == 1: # low
                 self.follow_up_intensity = self.args.intensity_dist_low_priority.sample()
-            elif int(self.priority) == 2:
+            elif int(self.priority) == 2: # high
                 self.follow_up_intensity = self.args.intensity_dist_high_priority.sample()
             else:
                 print(f"Error - Unknown priority value received ({self.priority})")
+            # Output of this:
+            # we count 0 as a low intensity follow-up
+            # we count 1 as a high intensity follow-up
 
-            # Adjust caseload values if expected pathway not follows
+            # Adjust caseload values if expected pathway not followed
             # if high priority has low intensity follow up then we need to reduce the
             # number of caseload slots they are using from 1 to 0.5:
             if self.follow_up_intensity == 0 and int(self.priority) == 2:
@@ -749,18 +706,34 @@ class PatientReferral(object):
                 self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 0.5
 
             # Now sample how many follow-up appointments they need
-            if self.follow_up_intensity == 1:
+            if self.follow_up_intensity == 1: # high-intensity follow-up
                 num_appts = int(self.args.num_follow_up_dist_high_intensity.sample())
                 repeat_booker = RepeatBooker(
                     ideal_frequency=HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
                     args = self.args,
                     clinic_id=self.booked_clinic)
-            else:
+            else: # low-intensity follow-up
                 num_appts = int(self.args.num_follow_up_dist_low_intensity.sample())
                 repeat_booker = RepeatBooker(
                     args = self.args,
                     ideal_frequency=LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
                     clinic_id=self.booked_clinic)
+
+            print(f"Client {self.identifier} (priority: {self.priority}) assessed as needing {num_appts} appointments at intensity {self.follow_up_intensity}")
+
+            # Now we know how many appointments they will have over the total duration
+            # of their interaction with the service, we can enter a loop of booking in
+            # their appointment (waiting a minimum of the preferred interval - 1),
+            # waiting (time elapses) until that appointment takes place, then when they
+            # attend their appointment, we check the calendar and book in their next
+            # appointment
+            # This then just repeats as many times are required to meet the number of
+            # appointments we've sampled they need
+            # The alternative would have been to sample each time whether we think a
+            # client is going to need an additional appointment but while this perhaps
+            # more realistically reflects what's happening in practice, it is much harder
+            # to then reflect the historical (or desired) spread of the number of follow-up
+            # appointments people in our system have
 
             for i in range(num_appts):
                 best_t, clinic = \
@@ -808,35 +781,22 @@ class PatientReferral(object):
                 i += 1
 
                 # Repeat this loop until all predefined appointments have taken place
-        # else:
-        #                 self.event_log.append(
-        #         {'patient': self.identifier,
-        #         'pathway': self.priority,
-        #         'event_type': 'attribute',
-        #         'event': 'follow_ups_not_required',
-        #         'booked_clinic': int(self.booked_clinic),
-        #         'home_clinic': int(self.home_clinic),
-        #         'time': self.env.now
-        #         }
-        #     )
 
-        # Once they reach this part of the code, they are leaving the system, so can
-        # be removed from the caseload file
-        if self.follow_up_intensity == 1:
-            self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 1
-        elif self.follow_up_intensity == 0:
-            self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 0.5
+            # Once they reach this part of the code, they are leaving the system, so can
+            # be removed from the caseload file
+            if self.follow_up_intensity == 1:
+                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 1
+            elif self.follow_up_intensity == 0:
+                self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 0.5
 
-        self.event_log.append(
-            {'patient': self.identifier,
-             'pathway': self.priority,
-             'event_type': 'arrival_departure',
-             'event': 'depart',
-             'home_clinic': int(self.home_clinic),
-             'time': self.env.now+1}
-        )
-
-
+            self.event_log.append(
+                {'patient': self.identifier,
+                'pathway': self.priority,
+                'event_type': 'arrival_departure',
+                'event': 'depart',
+                'home_clinic': int(self.home_clinic),
+                'time': self.env.now+1}
+            )
 
 class AssessmentReferralModel(object):
     '''
@@ -871,8 +831,18 @@ class AssessmentReferralModel(object):
 
         self.event_log = []
 
-        #simpy processes
+        self.init_resources()
+
+        # simpy processes
         self.env.process(self.generate_arrivals())
+        self.env.process(self.book_new_clients_if_capacity())
+
+    def init_resources(self):
+        """
+        Create a store we can keep patients in while we wait for there
+        to be capacity on a clinician's caseload
+        """
+        self.args.waiting_for_clinician_store = simpy.Store(self.env)
 
     def run(self):
         '''
@@ -920,15 +890,18 @@ class AssessmentReferralModel(object):
                         assessment_booker = LowPriorityPooledBooker(self.args)
 
                     #create instance of PatientReferral
-                    patient = PatientReferral(self.env, self.args,
+                    patient = PatientReferral(self.env,
+                                              self.args,
                                               referral_t=t,
                                               home_clinic=clinic_id,
                                               booker=assessment_booker,
                                               event_log=self.event_log,
-                                              identifier=f"{t}_{i}")
+                                              identifier=f"{t}_{i}",
+                                              wait_store=self.args.waiting_for_clinician_store)
 
                     #start a referral assessment process for patient.
-                    self.env.process(patient.execute())
+                    self.env.process(patient.execute_referral())
+                    # patient.execute_referral()
 
                     #only collect results after warm-up complete
                     if self.env.now > self.args.warm_up_period:
@@ -946,7 +919,7 @@ class AssessmentReferralModel(object):
                         'time': self.env.now
                         }
                     )
-                    print(f"Client {t}_{i} referred out - inappropriate referral")
+                    print(f"Client {t}_{i} categorised as inappropriate referral - rejected")
 
                     self.event_log.append(
                         {'patient': f"{t}_{i}",
@@ -968,6 +941,84 @@ class AssessmentReferralModel(object):
                         }
                     )
 
+            #timestep by one day
+            yield self.env.timeout(1)
+
+    def book_new_clients_if_capacity(self):
+        #loop a day at a time.
+        for t in itertools.count():
+            print(f"Checking clinician caseload on day {t}")
+            # Check whether there is any capacity for new patients to be added to the caseload of the clinicians
+            # (i.e. have any of their existing clients had their final appointment since yesterday, making space
+            # on their books?)
+
+            # There may be more than 1 clinician who has capacity now (or a clinician may have capacity to take on multiple new clients),
+            # so get the total number of available slots we can work with
+
+            # Get this many patients out of the store (skimming from the top/front of the queue - store is FIFO)
+            # Remember that different patients will have different priorities/frequencies, which affects how much of a caseload
+            # slot they take up (e.g. being seen every 2 weeks means 0.5 slots used, being seen every week means 1 slot used)
+            # Note - in this model we have made it so that high priority patients get booked in regardless of capacity,
+            # and low priority patients get booked in when there is availability by being sent to this process
+            # If you wanted a different behaviour for the high priority patients (or to add in additional ranking of multiple
+            # priorities of patient) you could put all patients into the store and reorder them in the store by some priority variable
+
+            # First calculate the caseload of each clinician
+            # Caseload calculation is based on the number of slots they have available
+            # each week, the number of high intensity patients they have (take up 1 slot per week,
+            # so 1 caseload slot), and the number of low intensity caseload patients they have (take
+            # up 1 slot every other week, so 0.5 caseload slots). Want to leave a buffer of 1 caseload
+            # slot per clinician (i.e. if they have 15 theoretical slots per week but 14 are already taken,
+            # we will count this as full for these purposes - as this leaves some flexibility for
+            # high priority/urgent patients, who will bypass the check and be admitted to caseload anyway)
+
+            # What we need to check is the number of people currently booked for assessment or on the books
+            # with each clinician
+            # this is stored in self.args.existing_caseload
+
+            def check_for_availability():
+                # Then we calculate their theoretical maximum from the slots file
+                caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
+                # Then we subtract one from the other to get the available slots
+                # Then subtract one from the theoretical maximum because we want to leave headroom
+                # for emergency clients
+                available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:])- 1
+                clinicians_with_slots = len([c for c in available_caseload if c > 0])
+                return clinicians_with_slots, available_caseload
+
+            # Do an initial check for if anyone has capacity
+            # and if they do, check who has the soonest appointment
+            # If no-one has capacity, time out and wait until tomorrow instead
+            # when a fresh check will be done.
+            clinicians_with_slots, available_caseload = check_for_availability()
+            print(f"Initial availability on day {t}: {clinicians_with_slots} clinicians with {available_caseload.sum()} total slots")
+            print(f"Current caseload distribution: {self.args.existing_caseload}")
+
+            # We have to make some assumptions here that may later prove to be incorrect - we assume a low priority patient will go on
+            # to be low intensity, but this may change after their assessment - but for now we basically assume that each client that's
+            # in our store is going to take up 0.5 slots
+            # (so e.g. if a high intensity patient has just left the system, then you can book 2 likely-to-be-low intensity patients
+            # in their place)
+            while clinicians_with_slots > 0:
+                # Get someone out of the store
+                with self.args.waiting_for_clinician_store.get() as req:
+                    patient_front_of_wl = yield req
+                    # Check whether they
+                    # You could do this differently here if you had multiple priority levels within the store
+                    # For example, if there isn't space for a high priority person on someone's caseload, maybe a low priority
+                    # person could jump the queue (as they wouldn't overload that clinician)
+                    # But here we just have low priority patients in our store because any high priority patients have gone straight
+                    # to being booked in
+                    print(f"Booking patient {patient_front_of_wl.identifier} (priority: {patient_front_of_wl.priority}) for appointment")
+                    self.env.process(patient_front_of_wl.execute_assessment_appointment())
+                    print(f"Updated availability on day {t}: {clinicians_with_slots} clinicians with {available_caseload.sum()} total slots")
+                    # patient_front_of_wl.execute_assessment_appointment()
+
+                # Now that patient has been booked in, recheck the number of available slots
+                # If there are still clinicians with slots, the next patient in the store
+                # will be brought out and be booked in
+                clinicians_with_slots, available_caseload = check_for_availability()
+            print(f"All possible bookings made for day {t}")
             #timestep by one day
             yield self.env.timeout(1)
 

@@ -11,6 +11,8 @@ from examples.ex_5_community_follow_up.simulation_execution_functions import sin
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
 # from plotly.subplots import make_subplots
+# from helper_functions import d2
+
 
 st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
@@ -19,6 +21,20 @@ st.set_page_config(layout="wide",
 gc.collect()
 
 st.title("Mental Health - Appointment Booking Model")
+
+# d2(
+#     """
+#     good chips: {
+#       doritos
+#       ruffles
+#     }
+#     bad chips.lays
+#     bad chips.pringles
+
+#     chocolate.chip.cookies
+
+#     """
+# )
 
 # args = Scenario()
 
@@ -29,7 +45,7 @@ st.markdown("Edit the number of daily slots available per clinic by clicking in 
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 shifts_edited = st.data_editor(shifts)
 
-annual_demand = st.slider("Select average annual demand", 100, 1500, 500, 10)
+annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
 prop_high_priority = st.slider("Select proportion of high priority", 0.0, 0.9, 0.03, 0.01)
 prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.15, 0.01)
 
