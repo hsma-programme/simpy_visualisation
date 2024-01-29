@@ -47,7 +47,7 @@ shifts_edited = st.data_editor(shifts)
 
 annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
 prop_high_priority = st.slider("Select proportion of high priority", 0.0, 0.9, 0.03, 0.01)
-prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.15, 0.01)
+prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.0, 0.01)
 
 #depending on settings and CPU this model takes around 15-20 seconds to run
 
@@ -58,7 +58,7 @@ if button_run_pressed:
     # add a spinner and then display success box
     with st.spinner('Simulating the community booking system...'):
 
-        RESULTS_COLLECTION = 50 * 1
+        RESULTS_COLLECTION = 365 * 1
 
         #We will learn about warm-up periods in a later lab.  We use one
         #because the model starts up empty which doesn't reflect reality
@@ -90,7 +90,7 @@ if button_run_pressed:
         event_log_df['event'] = event_log_df.apply(lambda x: f"{x['event']}{f'_{int(x.booked_clinic)}' if pd.notna(x['booked_clinic']) else ''}", axis=1)
 
         full_patient_df = reshape_for_animations(event_log_df,
-                                                 limit_duration=WARM_UP+180,
+                                                 limit_duration=WARM_UP+RESULTS_COLLECTION,
                                                  every_x_time_units=1,
                                                  step_snapshot_max=30)
 
