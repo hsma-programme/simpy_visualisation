@@ -621,7 +621,8 @@ class PatientReferral(object):
             'event': 'appointment_booked_waiting',
             'booked_clinic': int(self.booked_clinic),
             'home_clinic': int(self.home_clinic),
-            'time': self.env.now
+            'time': self.env.now,
+            'assessment_booking_wait': (best_t - self.env.now)
             }
         )
 

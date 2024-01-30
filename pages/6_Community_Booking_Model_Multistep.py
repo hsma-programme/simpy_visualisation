@@ -284,6 +284,11 @@ if button_run_pressed:
         HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
         """)
 
+        # Look at time from joining waiting list to booking
+
+        # Look at average number of appointments (distribution)
+
+
         st.dataframe(
             event_log_df
             .dropna(subset='follow_up_intensity')
@@ -305,3 +310,82 @@ if button_run_pressed:
 #TODO
 # Investigate adding a priority attribute to event log
 # that can be considered when ranking queues if present
+
+#
+        st.subheader("Number of follow-up appointments per client")
+        st.markdown(
+          """
+          1 = initially triaged as low priority
+          2 = initially triaged as high priority
+
+          high = high-intensity follow-ups recommended after assessment (7 day interval)
+          low = low-intensity follow-ups recommended after assessment (7 day interval)
+          """
+        )
+        st.dataframe(
+            event_log_df
+            .dropna(subset='follow_ups_intended')
+            .drop_duplicates(subset='patient')
+            .groupby(['pathway','follow_up_intensity'])['follow_ups_intended']
+            .describe()
+            .T
+        )
+
+        st.write(
+            event_log_df
+              .dropna(subset='follow_ups_intended')
+              .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
+              .value_counts()
+        )
+
+        st.plotly_chart(
+            px.bar(
+            event_log_df
+              .dropna(subset='follow_ups_intended')
+              .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
+              .value_counts()
+              .reset_index(drop=False),
+            x="follow_ups_intended", y="count",facet_row="pathway"
+            )
+        )
+
+        # st.plotly_chart(
+        #     px.bar(
+        #     event_log_df
+        #       .dropna(subset='follow_ups_intended')
+        #       .drop_duplicates(subset='patient'),
+        #       x=,
+        #       y=
+        # )
+        # )
+
+        st.subheader("Time from referral to appointment booking")
+
+        st.write(
+            event_log_df
+            .dropna(subset='assessment_booking_wait')
+            .drop_duplicates(subset='patient')
+            .groupby('pathway')['assessment_booking_wait']
+            .describe()
+            .T
+        )
+
+        st.write(
+            event_log_df
+            .dropna(subset='assessment_booking_wait')
+            .drop_duplicates(subset='patient')
+            .groupby('pathway')[['pathway','assessment_booking_wait']]
+            .value_counts()
+        )
+
+        st.plotly_chart(
+            px.bar(
+            event_log_df
+            .dropna(subset='assessment_booking_wait')
+            .drop_duplicates(subset='patient')
+            .groupby('pathway')[['pathway','assessment_booking_wait']]
+            .value_counts()
+            .reset_index(drop=False),
+            x="assessment_booking_wait", y="count", facet_row="pathway"
+            )
+        )
