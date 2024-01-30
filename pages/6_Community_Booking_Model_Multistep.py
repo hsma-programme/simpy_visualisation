@@ -81,13 +81,18 @@ if button_run_pressed:
         st.subheader("Clinic Simulation")
         st.markdown("### Wait for initial appointment")
         results_all, results_low, results_high, event_log = single_run(args = scenarios['pooled'])
-        st.dataframe(results_summary(results_all, results_low, results_high))
+        st.dataframe(
+            results_summary(results_all, results_low, results_high)
+            )
 
         event_log_df = pd.DataFrame(event_log)
 
 
         event_log_df['event_original'] = event_log_df['event']
-        event_log_df['event'] = event_log_df.apply(lambda x: f"{x['event']}{f'_{int(x.booked_clinic)}' if pd.notna(x['booked_clinic']) else ''}", axis=1)
+        event_log_df['event'] = event_log_df.apply(
+            lambda x: f"{x['event']}{f'_{int(x.booked_clinic)}'if pd.notna(x['booked_clinic']) and x['event'] != 'waiting_appointment_to_be_scheduled' else ''}",
+            axis=1
+            )
 
         full_patient_df = reshape_for_animations(event_log_df,
                                                  limit_duration=WARM_UP+RESULTS_COLLECTION,
