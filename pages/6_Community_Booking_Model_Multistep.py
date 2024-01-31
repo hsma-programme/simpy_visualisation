@@ -43,7 +43,15 @@ st.title("Mental Health - Appointment Booking Model")
 st.subheader("Weekly Slots")
 st.markdown("Edit the number of daily slots available per clinic by clicking in the boxes below, or leave as the default schedule")
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
-shifts_edited = st.data_editor(shifts)
+
+number_of_clinicians = st.number_input("Number of Clinicians (caution: changing this will reset any changes you've made to shifts below)",
+                min_value=1, max_value=11, value=11, step=1)
+shifts_edited = st.data_editor(shifts.iloc[:,:number_of_clinicians])
+
+# Total caseload slots available
+st.write(shifts_edited.sum().T)
+
+st.write(f"Total caseload slots available: {shifts_edited.sum().sum()}")
 
 annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
 prop_high_priority = st.slider("Select proportion of high priority", 0.0, 0.9, 0.03, 0.01)
@@ -68,19 +76,26 @@ if button_run_pressed:
         #set up the scenario for the model to run.
         scenarios = {}
 
+        caseload = pd.read_csv("examples/ex_5_community_follow_up/data/caseload.csv").iloc[:,:number_of_clinicians+1]
+        pooling = pd.read_csv("examples/ex_5_community_follow_up/data/partial_pooling.csv").iloc[:number_of_clinicians,:number_of_clinicians+1]
+        referrals = pd.read_csv("examples/ex_5_community_follow_up/data/referrals.csv").iloc[:number_of_clinicians]
+
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
                                        prop_carve_out=prop_carve_out,
                                        seeds=generate_seed_vector(),
                                        slots_file=shifts_edited,
+                                       pooling_file=pooling,
+                                       existing_caseload_file=caseload,
                                        prop_high_priority=prop_high_priority,
+                                       demand_file=referrals,
                                        annual_demand=annual_demand)
 
         col1, col2, col3 = st.columns(3)
 
         st.subheader("Clinic Simulation")
         st.markdown("### Wait for initial appointment")
-        results_all, results_low, results_high, event_log = single_run(args = scenarios['pooled'])
+        results_all, results_low, results_high, event_log, bookings, available_slots = single_run(args = scenarios['pooled'])
         st.dataframe(
             results_summary(results_all, results_low, results_high)
             )
@@ -389,3 +404,18 @@ if button_run_pressed:
             x="assessment_booking_wait", y="count", facet_row="pathway"
             )
         )
+
+        st.subheader("Bookings")
+
+        st.write(bookings.iloc[WARM_UP:RUN_LENGTH,])
+
+        st.subheader("Remaining Slots")
+
+        st.write(available_slots.iloc[WARM_UP:RUN_LENGTH,])
+
+        st.subheader("Slot Utilisation - Slots Remaining")
+
+        st.write(
+            (bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
+            ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()
+                 )
