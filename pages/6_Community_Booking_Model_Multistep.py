@@ -11,6 +11,7 @@ from examples.ex_5_community_follow_up.model_classes import Scenario, generate_s
 from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
+from st_aggrid import AgGrid
 # from plotly.subplots import make_subplots
 # from helper_functions import d2
 
@@ -228,6 +229,29 @@ if button_run_pressed:
             debug_mode=False
         )
 
+        daily_position_counts = []
+
+        for day in range(RUN_LENGTH):
+            # First limit to anyone who hasn't left the system yet
+            departed = event_log_df[
+                (event_log_df["time"] <= day) &
+                (event_log_df["event"] == "depart")]["patient"].tolist()
+            # Filter down to events that have occurred at or before this day
+            upto_now = event_log_df[(event_log_df["time"] <= day)
+                                    & (event_log_df["event"] != "arrival")
+                                    & (~event_log_df["patient"].isin(departed))]
+            # Now take the latest event for each person
+            latest_event_upto_now = upto_now.sort_values("time").groupby("patient").tail(1)
+            for event_type in event_log_df["event_original"].unique():
+                snapshot_count = len(latest_event_upto_now[(latest_event_upto_now["event_original"] == event_type)])
+                daily_position_counts.append(
+                    {"day": day,
+                    "event": event_type,
+                    "count": snapshot_count}
+                )
+
+        daily_position_counts = pd.DataFrame(daily_position_counts)
+
         tab_summary, tab1,  tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
             ["Results Summary", "Animated Event Log", "Queue Sizes","Time From Referral to Booking",
              "Wait for Assessment", "Follow-up Appointment Stats", "Utilisation",
@@ -235,12 +259,99 @@ if button_run_pressed:
         )
 
         with tab_summary:
-            st.markdown("Placeholder")
+            col1, col2 = st.columns(2)
             # Waiting list size over time (is it steady-state or out of control?)
+            with col1:
+                st.subheader("Waiting lists over time")
+                st.plotly_chart(
+                px.line(
+                    daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
+                                          (daily_position_counts["event"] == "appointment_booked_waiting") |
+                                          (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")],
+                  x="day",
+                  y="count",
+                  color="event"
+                ),
+                use_container_width=True
+
+            )
+
+            # Time from referral to booking
+            with col2:
+                st.subheader("Booking Waits")
+                assessment_booking_waits = (event_log_df
+                      .dropna(subset='assessment_booking_wait')
+                      .drop_duplicates(subset='patient')[['time','pathway', 'assessment_booking_wait']])
+                st.write(f"Average wait for booking (high priority): {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)} (Target: 7 days, Longest {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)} days)")
+                st.write(f"Average wait for booking (high priority): {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)} (Target: 14 days, Longest {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)} days)")
+
+                st.plotly_chart(
+                    px.box(
+                      assessment_booking_waits,
+                      y="assessment_booking_wait", x="pathway", color="pathway"
+                          ), use_container_width=True
+                )
+
+                st.plotly_chart(
+                    px.line(
+                      assessment_booking_waits,
+                      y="assessment_booking_wait", x="time", color="pathway", line_group="pathway"
+                    ), use_container_width=True
+                )
 
             # Distribution of assessment waits by priority (do they meet target)
+            col3, col4 = st.columns(2)
+            with col3:
+                st.subheader("Assessment Waits")
+                st.write(f"Average wait for assessment (high priority): {round(np.mean(results_high),1)} (Target: 7 days, Longest {round(max(results_high),1)} days)")
+                st.write(f"Average wait for assessment (high priority): {round(np.mean(results_low),1)} (Target: 14 days, Longest {round(max(results_low),1)} days)")
 
+                st.plotly_chart(
+                    px.box(
+                event_log_df
+                .dropna(subset='wait')
+                .drop_duplicates(subset='patient')[['pathway', 'wait']],
+                y="wait", x="pathway", color="pathway"
+                    ), use_container_width=True
+                    )
+
+                st.plotly_chart(
+                    px.line(
+                      event_log_df
+                      .dropna(subset='wait')
+                      .drop_duplicates(subset='patient')[['time','pathway', 'wait']],
+                      y="wait", x="time", color="pathway", line_group="pathway"
+                    ), use_container_width=True
+                    )
             # Distribution of inter-appointment waits (are they in tolerances)
+            with col4:
+                st.subheader("Inter-appointment waits")
+
+                inter_appointment_gaps = (event_log_df
+                .dropna(subset='interval')
+                .drop_duplicates('patient')
+                # .query('event_original == "have_appointment"')
+                [['time', 'follow_up_intensity','interval']]
+                )
+
+                # st.write(inter_appointment_gaps)
+
+                st.write(f"Average appointment interval (high priority): {round(np.mean(inter_appointment_gaps[inter_appointment_gaps['follow_up_intensity'] == 'high']['interval']),1)} (Target: 7 days, Longest {round(max(inter_appointment_gaps[inter_appointment_gaps['follow_up_intensity'] == 'high']['interval']),1)} days)")
+                st.write(f"Average appointment interval (high priority): {round(np.mean(inter_appointment_gaps[inter_appointment_gaps['follow_up_intensity'] == 'low']['interval']),1)} (Target: 14 days, Longest {round(max(inter_appointment_gaps[inter_appointment_gaps['follow_up_intensity'] == 'low']['interval']),1)} days)")
+
+                st.plotly_chart(
+                    px.box(
+                      inter_appointment_gaps,
+                      y="interval", x="follow_up_intensity", color="follow_up_intensity"
+                          ), use_container_width=True
+                )
+
+                st.plotly_chart(
+                    px.line(
+                      inter_appointment_gaps,
+                      y="interval", x="time", color="follow_up_intensity", line_group="follow_up_intensity"
+                    ), use_container_width=True
+                )
 
             # Utilisation of appointment slots
 
@@ -259,7 +370,8 @@ if button_run_pressed:
             st.plotly_chart(fig)
 
         with tab8:
-            st.dataframe(event_log_df)
+            # st.dataframe(event_log_df)
+            AgGrid(event_log_df)
 
         with tab5:
             # Average interval for low intensity and high intensity
@@ -416,29 +528,6 @@ if button_run_pressed:
 
         with tab2:
             st.subheader("Waiting List over Time")
-
-            daily_position_counts = []
-
-            for day in range(RUN_LENGTH):
-                # First limit to anyone who hasn't left the system yet
-                departed = event_log_df[
-                    (event_log_df["time"] <= day) &
-                    (event_log_df["event"] == "depart")]["patient"].tolist()
-                # Filter down to events that have occurred at or before this day
-                upto_now = event_log_df[(event_log_df["time"] <= day)
-                                        & (event_log_df["event"] != "arrival")
-                                        & (~event_log_df["patient"].isin(departed))]
-                # Now take the latest event for each person
-                latest_event_upto_now = upto_now.sort_values("time").groupby("patient").tail(1)
-                for event_type in event_log_df["event_original"].unique():
-                    snapshot_count = len(latest_event_upto_now[(latest_event_upto_now["event_original"] == event_type)])
-                    daily_position_counts.append(
-                        {"day": day,
-                        "event": event_type,
-                        "count": snapshot_count}
-                    )
-
-            daily_position_counts = pd.DataFrame(daily_position_counts)
 
             st.plotly_chart(
                 px.bar(
