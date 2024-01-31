@@ -652,19 +652,23 @@ class PatientReferral(object):
         def get_available_clinicians():
             # First calculate each clinician's theoretical maximum from the slots file
             # TODO: Consdier whether to floor
-            #
-            caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
+            caseload_slots_per_clinician = np.floor((self.args.weekly_slots).sum().to_numpy().T * self.args.caseload_multiplier)
+            trace(f"Adjusted slots: {caseload_slots_per_clinician}")
+            # caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
             # Then we subtract one from the other to get the available slots
             # Then subtract one from the theoretical maximum because we want to leave headroom
             # for emergency clients
+            # available_caseload = (
+            #     caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]
+            #     )- 1
             available_caseload = (
                 caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]
-                )- 1
+                )
             # trace(f"Checking available clinicians when booking assessment appointment. " \
             #       f"Caseload slots available: {sum([c if c>0 else 0 for c in available_caseload])} ({available_caseload})")
             # trace(f"Total theoretical caseload: {caseload_slots_per_clinician}")
             # trace(f"Total current caseload per clinician: {self.args.existing_caseload.tolist()[1:]}")
-            clinicians_with_slots = [True if c > 0 else False for c in available_caseload]
+            clinicians_with_slots = [True if c >= 0.5 else False for c in available_caseload]
             return clinicians_with_slots
 
         #get slot for clinic
@@ -1114,13 +1118,15 @@ class AssessmentReferralModel(object):
         def check_for_availability():
             # Then we calculate their theoretical maximum from the slots file
              # TODO: Consdier whether to floor
-            # caseload_slots_per_clinician = np.floor((self.args.weekly_slots).sum().to_numpy().T * self.args.caseload_multiplier)
-            caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
+            caseload_slots_per_clinician = np.floor((self.args.weekly_slots).sum().to_numpy().T * self.args.caseload_multiplier)
+            trace(f"Adjusted slots: {caseload_slots_per_clinician}")
+            # caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
             # Then we subtract one from the other to get the available slots
             # Then subtract one from the theoretical maximum because we want to leave headroom
             # for emergency clients
-            available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]) -1
-            clinicians_with_slots = len([c for c in available_caseload if c > 0])
+            # available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]) -1
+            available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:])
+            clinicians_with_slots = len([c for c in available_caseload if c >= 0.5])
             return clinicians_with_slots, available_caseload
 
         # Do an initial check for if anyone has capacity

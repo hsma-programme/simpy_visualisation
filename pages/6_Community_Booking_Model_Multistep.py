@@ -1,5 +1,6 @@
 import gc
 import time
+import numpy as np
 import math
 import datetime as dt
 import streamlit as st
@@ -44,7 +45,7 @@ st.markdown(
 # Total caseload slots available
 caseload_default_adjusted = pd.concat(
         [shifts_edited.sum(),
-         shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER],
+         np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER)],
          axis=1
          )
 caseload_default_adjusted.columns = ["Default Caseload (Total Slots)", "Adjusted Caseload"]
@@ -468,7 +469,7 @@ if button_run_pressed:
             st.subheader("Balance between people arriving in the system and departing")
 
             st.write(event_log_df[(event_log_df["event"] == "arrival") |
-                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().sort_values('time'))
+                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time'))
 
             st.plotly_chart(
                 px.line(
