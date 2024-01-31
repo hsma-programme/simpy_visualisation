@@ -19,6 +19,22 @@ class PrioritizedItem:
     priority: int
     item: Any=field(compare=False)
 
+def trace(msg):
+    '''
+    Utility function for traceing a trace as the
+    simulation model executes.
+    Set the TRACE constant to False, to turn tracing off.
+
+    Params:
+    -------
+    msg: str
+        string to trace to screen.
+    '''
+    if TRACE:
+        trace(msg)
+
+TRACE = False
+
 from examples.distribution_classes import Bernoulli, Discrete, Poisson, Lognormal
 
 def generate_seed_vector(one_seed_to_rule_them_all=42, size=20):
@@ -89,13 +105,14 @@ class Scenario():
     def __init__(self,
                  run_length,
                  warm_up=0.0,
-                 prop_carve_out=0.15,
+                 prop_carve_out=0.0,
                  demand_file=None,
                  slots_file=None,
                  pooling_file=None,
                  existing_caseload_file=None,
                  annual_demand=ANNUAL_DEMAND,
                  prop_high_priority=PROP_HIGH_PRORITY,
+                 caseload_multiplier=1,
                  seeds=None):
 
         if seeds is None:
@@ -125,6 +142,13 @@ class Scenario():
 
         #should we pool clinics?
         self.pooling = True
+
+        # What multiplier should we apply to caseload?
+        # Increasing this may mean more effective utilisation of slots
+        # because it prompt bookings to be made before clients are removed
+        # from caseload so caseload numbers don't drop too far below the
+        # optimum
+        self.caseload_multiplier = caseload_multiplier
 
         #proportion of carve out used
         self.prop_carve_out = prop_carve_out
@@ -303,11 +327,11 @@ class LowPriorityPooledBooker():
         if (limit_clinic_choice is not None) and (not any(limit_clinic_choice)):
             raise AssertionError("Booking code triggered when no clinics have slots available - check prior logic")
 
-        # print(self.args.pooling_np)
-        # print(clinic_id)
+        # trace(self.args.pooling_np)
+        # trace(clinic_id)
         # TODO: CONFIRM WHETHER ADDING IN -1 TO CLINIC ID HERE IS APPROPRIATE
         clinic_options = np.where(self.args.pooling_np[clinic_id] == 1)[0]
-        print(f"Clinic options: {clinic_options}")
+        trace(f"Clinic options: {clinic_options}")
 
         # Then mask further by those with availability
         # The booking code should never be triggered if the total available
@@ -315,7 +339,7 @@ class LowPriorityPooledBooker():
         # array
         if limit_clinic_choice is not None:
             clinic_options = clinic_options[limit_clinic_choice]
-            print(f"Clinic options after additional filtering: {clinic_options}")
+            trace(f"Clinic options after additional filtering: {clinic_options}")
 
         #get the clinic slots t+min_wait forward for the pooled clinics
         clinic_slots = available_slots_np[t+self.min_wait:, clinic_options]
@@ -595,20 +619,9 @@ class PatientReferral(object):
         # between regular appointments
         if self.priority == 1:
             # PUT THEM IN THE STORE AND GO TO THE NEXT PROCESS
-            print(f"Standard Referral {self.identifier} - Putting into referral queue")
+            trace(f"Standard Referral {self.identifier} - Putting into referral queue")
 
             self.wait_store.put(PrioritizedItem(100, self))
-
-            self.event_log.append(
-                {'patient': self.identifier,
-                'pathway': self.priority,
-                'event_type': 'queue',
-                'event': 'waiting_appointment_to_be_scheduled',
-                'booked_clinic': int(self.booked_clinic),
-                'home_clinic': int(self.home_clinic),
-                'time': self.env.now
-                }
-            )
             # Once they are in the store, the simulation will check once every day how many people can be taken
             # out of the store and booked in for their assessment and ongoing regular appointments
 
@@ -619,11 +632,11 @@ class PatientReferral(object):
         # If priority is high, put to front of referral queue
         if self.priority == 2:
             # PUT THEM IN THE STORE AND GO TO THE NEXT PROCESS
-            print(f"Urgent Referral {self.identifier} - Putting to front of referral queue")
-
+            trace(f"Urgent Referral {self.identifier} - Putting to front of referral queue")
+            # Lower numbers go to the front of the queue
             self.wait_store.put(PrioritizedItem(1, self))
 
-            self.event_log.append(
+        self.event_log.append(
                 {'patient': self.identifier,
                 'pathway': self.priority,
                 'event_type': 'queue',
@@ -633,16 +646,13 @@ class PatientReferral(object):
                 'time': self.env.now
                 }
             )
-        # if self.priority == 2:
-        #     print(f"Urgent Referral {self.identifier} - " \
-        #           f"Booking next available appointment immediately")
-        #     # self.execute_assessment_appointment()
-        #     yield self.env.process(self.execute_assessment_booking())
 
     def execute_assessment_booking(self):
 
         def get_available_clinicians():
             # First calculate each clinician's theoretical maximum from the slots file
+            # TODO: Consdier whether to floor
+            #
             caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
             # Then we subtract one from the other to get the available slots
             # Then subtract one from the theoretical maximum because we want to leave headroom
@@ -650,10 +660,10 @@ class PatientReferral(object):
             available_caseload = (
                 caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]
                 )- 1
-            # print(f"Checking available clinicians when booking assessment appointment. " \
+            # trace(f"Checking available clinicians when booking assessment appointment. " \
             #       f"Caseload slots available: {sum([c if c>0 else 0 for c in available_caseload])} ({available_caseload})")
-            # print(f"Total theoretical caseload: {caseload_slots_per_clinician}")
-            # print(f"Total current caseload per clinician: {self.args.existing_caseload.tolist()[1:]}")
+            # trace(f"Total theoretical caseload: {caseload_slots_per_clinician}")
+            # trace(f"Total current caseload per clinician: {self.args.existing_caseload.tolist()[1:]}")
             clinicians_with_slots = [True if c > 0 else False for c in available_caseload]
             return clinicians_with_slots
 
@@ -666,7 +676,7 @@ class PatientReferral(object):
         # if non-urgent, we will have previously checked that there is some availability
         else:
             got_slots = get_available_clinicians()
-            print(f"Clinicians with slots for patient {self.identifier}: {got_slots}")
+            trace(f"Clinicians with slots for patient {self.identifier}: {got_slots}")
             self.assessment_t, self.booked_clinic = self.booker.find_slot(
                 self.env.now, self.home_clinic,
                 # Limit clinic choice here to clinicians with capacity
@@ -678,7 +688,7 @@ class PatientReferral(object):
         #book slot at clinic = time of referral + waiting_time
         self.booker.book_slot(self.assessment_t, self.booked_clinic)
 
-        print(f"client {self.identifier} (priority: {self.priority}): referred on" \
+        trace(f"client {self.identifier} (priority: {self.priority}): referred on" \
               f" {self.referral_t}, seized booking with clinician {self.booked_clinic}" \
               f" on day {self.assessment_t} at day {self.env.now}" \
               f" (Assessment wait: {self.assessment_t - self.env.now} days," \
@@ -708,7 +718,7 @@ class PatientReferral(object):
         elif self.priority == 1:
             self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 0.5
         else:
-            print(f"Error - unknown priority value passed for patient {self.identifier}" \
+            trace(f"Error - unknown priority value passed for patient {self.identifier}" \
                   f" ({self.priority})")
 
         # Pass client to process where they will wait for the assessment appointment
@@ -753,7 +763,7 @@ class PatientReferral(object):
         elif int(self.priority) == 2: # high priority
             follow_up_y = self.args.follow_up_dist_high_priority.sample()
         else:
-            print(f"Error - Unknown priority value received ({self.priority})")
+            trace(f"Error - Unknown priority value received ({self.priority})")
 
         # If they don't have follow-up appointments we can remove them
         # from the caseload and they'll exit the system
@@ -762,7 +772,7 @@ class PatientReferral(object):
         # (high priority = probably high intensity = 1 caseload slot)
         # (low priority = probably low intensity = 0.5 caseload slots)
         if not follow_up_y:
-            print(f"Client {self.identifier} (priority: {self.priority})" \
+            trace(f"Client {self.identifier} (priority: {self.priority})" \
                   f" assessed as not needing ongoing service")
             self.event_log.append(
                 {'patient': self.identifier,
@@ -789,7 +799,7 @@ class PatientReferral(object):
             elif int(self.priority) == 2: # high
                 self.follow_up_intensity = self.args.intensity_dist_high_priority.sample()
             else:
-                print(f"Error - Unknown priority value received ({self.priority})")
+                trace(f"Error - Unknown priority value received ({self.priority})")
             # Output of this:
             # we count 0 as a low intensity follow-up
             # we count 1 as a high intensity follow-up
@@ -820,7 +830,7 @@ class PatientReferral(object):
                     ideal_frequency=LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
                     clinic_id=self.booked_clinic)
 
-            print(f"Client {self.identifier} (priority: {self.priority}) assessed as needing" \
+            trace(f"Client {self.identifier} (priority: {self.priority}) assessed as needing" \
                   f" {num_appts} appointments at intensity {self.follow_up_intensity}")
 
             # Now we know how many appointments they will have over the total duration
@@ -933,6 +943,8 @@ class AssessmentReferralModel(object):
 
         self.event_log = []
 
+        self.daily_caseload_snapshots = []
+
         self.init_resources()
 
         # simpy processes
@@ -968,9 +980,9 @@ class AssessmentReferralModel(object):
         '''
         #loop a day at a time.
         for t in itertools.count():
-            print("##################")
-            print(f"# Day {t}")
-            print("##################")
+            trace("##################")
+            trace(f"# Day {t}")
+            trace("##################")
             #total number of referrals today
             n_referrals = self.args.arrival_dist.sample()
 
@@ -1024,7 +1036,7 @@ class AssessmentReferralModel(object):
                         'time': self.env.now
                         }
                     )
-                    print(f"Client {t}_{i} categorised as inappropriate referral - rejected")
+                    trace(f"Client {t}_{i} categorised as inappropriate referral - rejected")
 
                     self.event_log.append(
                         {'patient': f"{t}_{i}",
@@ -1049,14 +1061,19 @@ class AssessmentReferralModel(object):
             # Finish iterating per patient
 
             # Move onto processes that will be triggered once per day
-            print(f"Triggering assessment booking process on day {self.env.now}")
+            trace(f"Triggering assessment booking process on day {self.env.now}")
             self.env.process(self.book_new_clients_if_capacity())
+
+            # Record the daily caseload after all patients booked in
+            caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
+            self.daily_caseload_snapshots.append(
+                {'day': t, 'caseload_day_end': self.args.existing_caseload.tolist()[1:]})
 
             #timestep by one day
             yield self.env.timeout(1)
 
     def book_new_clients_if_capacity(self):
-        print(f"Initial check of clinician caseload on day {self.env.now}")
+        trace(f"Initial check of clinician caseload on day {self.env.now}")
         # Check whether there is any capacity for new patients to be added to the
         # caseload of the clinicians
         # (i.e. have any of their existing clients had their final appointment since yesterday,
@@ -1096,11 +1113,13 @@ class AssessmentReferralModel(object):
 
         def check_for_availability():
             # Then we calculate their theoretical maximum from the slots file
+             # TODO: Consdier whether to floor
+            # caseload_slots_per_clinician = np.floor((self.args.weekly_slots).sum().to_numpy().T * self.args.caseload_multiplier)
             caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
             # Then we subtract one from the other to get the available slots
             # Then subtract one from the theoretical maximum because we want to leave headroom
             # for emergency clients
-            available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]) - 1
+            available_caseload = (caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]) -1
             clinicians_with_slots = len([c for c in available_caseload if c > 0])
             return clinicians_with_slots, available_caseload
 
@@ -1109,8 +1128,8 @@ class AssessmentReferralModel(object):
         # If no-one has capacity, time out and wait until tomorrow instead
         # when a fresh check will be done.
         # clinicians_with_slots, available_caseload = check_for_availability()
-        # print(f"Current caseload distribution: {self.args.existing_caseload.tolist()[1:]}")
-        # print(f"Initial availability on day {self.env.now}: {clinicians_with_slots} " \
+        # trace(f"Current caseload distribution: {self.args.existing_caseload.tolist()[1:]}")
+        # trace(f"Initial availability on day {self.env.now}: {clinicians_with_slots} " \
         #       f"clinicians with {available_caseload.sum()} total caseload slots ({available_caseload})")
 
         # We have to make some assumptions here that may later prove to be incorrect -
@@ -1126,12 +1145,12 @@ class AssessmentReferralModel(object):
             # if there are any available slots, proceed, else break loop entirely
             # as if this is the case, we can't make any more bookings today
             cl_count = sum([c if c>0 else 0 for c in available_caseload])
-            print(f"Available caseload is {cl_count}")
+            trace(f"Available caseload is {cl_count}")
             if cl_count < 0.5:
-                print("Exiting loop position 1")
+                trace("Exiting loop position 1")
                 break
 
-            print(f"{self.args.waiting_for_clinician_store.qsize()} patients still waiting to be booked in")
+            trace(f"{self.args.waiting_for_clinician_store.qsize()} patients still waiting to be booked in")
 
             # Get someone out of the store of patients waiting for bookings
             patient_front_of_wl = self.args.waiting_for_clinician_store.get().item
@@ -1143,24 +1162,24 @@ class AssessmentReferralModel(object):
             # (as they wouldn't overload that clinician)
             # But here we just have low priority patients in our store because any
             # high priority patients have gone straight to being booked in
-            print(f"Patient {patient_front_of_wl.identifier} (priority: {patient_front_of_wl.priority}) removed from store")
+            trace(f"Patient {patient_front_of_wl.identifier} (priority: {patient_front_of_wl.priority}) removed from store")
             yield self.env.process(patient_front_of_wl.execute_assessment_booking())
-            print(f"Assessment booking process complete for patient {patient_front_of_wl.identifier}")
+            trace(f"Assessment booking process complete for patient {patient_front_of_wl.identifier}")
 
             # Recheck the availability after this booking
             # clinicians_with_slots, available_caseload = check_for_availability()
-            # print(f"Updated availability on day {self.env.now} after booking {patient_front_of_wl.identifier}: {clinicians_with_slots} clinicians with {sum([c if c>0 else 0 for c in available_caseload])} total slots")
-            # print(f"Available caseload per clinician: {available_caseload}")
+            # trace(f"Updated availability on day {self.env.now} after booking {patient_front_of_wl.identifier}: {clinicians_with_slots} clinicians with {sum([c if c>0 else 0 for c in available_caseload])} total slots")
+            # trace(f"Available caseload per clinician: {available_caseload}")
             # # If after updating availability there is no longer anyone with a caseload slot, break
             # # out of the while loop
             # if sum([c if c>0 else 0 for c in available_caseload]) < 0.5:
-            #     print (f"Available caseload is {sum([c if c>0 else 0 for c in available_caseload])} - exiting loop position 2")
+            #     trace (f"Available caseload is {sum([c if c>0 else 0 for c in available_caseload])} - exiting loop position 2")
             #     break
 
 
             # # If no availability at initial check point, exit
             # else:
-            #     print ("Exiting loop position 1")
+            #     trace ("Exiting loop position 1")
             #     break
 
                 # # Now that patient has been booked in, recheck the number of available slots
@@ -1168,7 +1187,7 @@ class AssessmentReferralModel(object):
                 # # will be brought out and be booked in
                 # clinicians_with_slots, available_caseload = check_for_availability()
         else:
-            print(f"No further slots available for booking on day {self.env.now}")
+            trace(f"No further slots available for booking on day {self.env.now}")
 
 
 
@@ -1177,21 +1196,21 @@ class AssessmentReferralModel(object):
         Produce summary results split by priority...
         '''
 
-        print(f"{len(self.referrals)} patients in total")
-        print(f"{[p.priority for p in self.referrals]}")
+        trace(f"{len(self.referrals)} patients in total")
+        trace(f"{[p.priority for p in self.referrals]}")
 
         results_all = [p.waiting_time for p in self.referrals
                if not p.waiting_time is None]
-        print(f"Results all - len {len(results_all)}")
+        trace(f"Results all - len {len(results_all)}")
 
         results_low = [p.waiting_time for p in self.referrals
                        if not (p.waiting_time is None) and p.priority == 1]
-        print(f"Results low - len {len(results_low)}")
+        trace(f"Results low - len {len(results_low)}")
 
         results_high = [p.waiting_time for p in self.referrals
                        if (not p.waiting_time is None) and p.priority == 2]
 
-        print(f"Results high - len {len(results_high)}")
+        trace(f"Results high - len {len(results_high)}")
 
         self.results_all = results_all
         self.results_low = results_low
@@ -1199,3 +1218,4 @@ class AssessmentReferralModel(object):
 
         self.bookings = self.args.bookings
         self.available_slots = self.args.available_slots
+        self.daily_caseload_snapshots = pd.DataFrame(self.daily_caseload_snapshots)

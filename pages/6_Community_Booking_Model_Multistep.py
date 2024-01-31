@@ -22,42 +22,55 @@ gc.collect()
 
 st.title("Mental Health - Appointment Booking Model")
 
-# d2(
-#     """
-#     good chips: {
-#       doritos
-#       ruffles
-#     }
-#     bad chips.lays
-#     bad chips.pringles
-
-#     chocolate.chip.cookies
-
-#     """
-# )
-
-# args = Scenario()
-
-#example solution...
-
 st.subheader("Weekly Slots")
-st.markdown("Edit the number of daily slots available per clinic by clicking in the boxes below, or leave as the default schedule")
+st.markdown("Edit the number of daily slots available per clinician by clicking in the boxes below, or leave as the default schedule")
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 
 number_of_clinicians = st.number_input("Number of Clinicians (caution: changing this will reset any changes you've made to shifts below)",
                 min_value=1, max_value=11, value=11, step=1)
 shifts_edited = st.data_editor(shifts.iloc[:,:number_of_clinicians])
 
-# Total caseload slots available
-st.write(shifts_edited.sum().T)
+CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
+                                       min_value=0.75, max_value=2.0, step=0.01, value=1.0)
 
-st.write(f"Total caseload slots available: {shifts_edited.sum().sum()}")
+# Adjust caseload target
+st.markdown(
+  """
+  The default is to aim to have as many people on caseload as you have maximum theoretical slots.
+  This can be adjusted up or down to see the impact of changing the policy.
+  """
+)
+
+# Total caseload slots available
+caseload_default_adjusted = pd.concat(
+        [shifts_edited.sum(),
+         shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER],
+         axis=1
+         )
+caseload_default_adjusted.columns = ["Default Caseload (Total Slots)", "Adjusted Caseload"]
+st.write(
+  caseload_default_adjusted
+)
+
+st.write(f"Total caseload slots available: {round(shifts_edited.sum().sum() * CASELOAD_TARGET_MULTIPLIER,1)}")
 
 annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
-prop_high_priority = st.slider("Select proportion of high priority", 0.0, 0.9, 0.03, 0.01)
-prop_carve_out = st.slider("Select proportion of carve-out", 0.0, 0.9, 0.0, 0.01)
+prop_high_priority = st.slider("Select proportion of high priority patients (will go to front of booking queue)", 0.0, 0.9, 0.03, 0.01)
+# prop_carve_out = st.slider("Select proportion of carve-out (slots reserved for high-priority patients)", 0.0, 0.9, 0.0, 0.01)
+# Note - need to check if carve-out still works before reintegrating - it may be that changes to the way appointments are booked means that
+# high-priority patients are no longer able to access them
+# Will also need to update the creation of the scenario object to reintroduce it there
 
-#depending on settings and CPU this model takes around 15-20 seconds to run
+WARM_UP = st.slider(label = "How many days should the simulation warm-up for before collecting results?",
+                               min_value=0, max_value=365*2,
+                               step=5, value=365)
+
+
+RESULTS_COLLECTION = st.slider(label = "How many days should results be collected for?",
+                               min_value=100, max_value=365*5,
+                               step=5, value=365*3)
+
+RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
 
 button_run_pressed = st.button("Run simulation")
 
@@ -65,14 +78,6 @@ if button_run_pressed:
 
     # add a spinner and then display success box
     with st.spinner('Simulating the community booking system...'):
-
-        RESULTS_COLLECTION = 365 * 1
-
-        #We will learn about warm-up periods in a later lab.  We use one
-        #because the model starts up empty which doesn't reflect reality
-        WARM_UP = 50
-        RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
-
         #set up the scenario for the model to run.
         scenarios = {}
 
@@ -82,23 +87,18 @@ if button_run_pressed:
 
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
-                                       prop_carve_out=prop_carve_out,
+                                      #  prop_carve_out=prop_carve_out,
                                        seeds=generate_seed_vector(),
                                        slots_file=shifts_edited,
                                        pooling_file=pooling,
                                        existing_caseload_file=caseload,
+                                       caseload_multiplier=CASELOAD_TARGET_MULTIPLIER,
                                        prop_high_priority=prop_high_priority,
                                        demand_file=referrals,
                                        annual_demand=annual_demand)
 
-        col1, col2, col3 = st.columns(3)
-
+        results_all, results_low, results_high, event_log, bookings, available_slots, daily_caseload_snapshots = single_run(args = scenarios['pooled'])
         st.subheader("Clinic Simulation")
-        st.markdown("### Wait for initial appointment")
-        results_all, results_low, results_high, event_log, bookings, available_slots = single_run(args = scenarios['pooled'])
-        st.dataframe(
-            results_summary(results_all, results_low, results_high)
-            )
 
         event_log_df = pd.DataFrame(event_log)
 
@@ -170,30 +170,6 @@ if button_run_pressed:
 
         event_position_df = pd.concat([event_position_df,(pd.DataFrame(follow_up_waiting))])
 
-        # event_position_df = pd.concat([
-        #     event_position_df,
-        #     pd.DataFrame([{'event': 'exit', 'x':  270, 'y': 70, 'label': "Exit"}])]) .reset_index(drop=True)
-
-        # clinic_lkup_df = pd.DataFrame([
-        #     {'clinic': 0, 'icon': "🟠"},
-        #     {'clinic': 1, 'icon': "🟡"},
-        #     {'clinic': 2, 'icon': "🟢"},
-        #     {'clinic': 3, 'icon': "🔵"},
-        #     {'clinic': 4, 'icon': "🟣"},
-        #     {'clinic': 5, 'icon': "🟤"},
-        #     {'clinic': 6, 'icon': "⚫"},
-        #     {'clinic': 7, 'icon': "⚪"},
-        #     {'clinic': 8, 'icon': "🔶"},
-        #     {'clinic': 9, 'icon': "🔷"},
-        #     {'clinic': 10, 'icon': "🟩"}
-        # ])
-
-
-
-        # event_position_df = event_position_df.merge(clinic_lkup_df, how="left")
-        # event_position_df["label"] = event_position_df.apply(lambda x: f"{x['label']} {x['icon']}" if pd.notna(x['icon']) else x['label'], axis=1)
-        # event_position_df = event_position_df.drop(columns="icon")
-
         event_position_df = event_position_df.drop(columns="clinic")
 
         full_patient_df_plus_pos = generate_animation_df(
@@ -207,44 +183,10 @@ if button_run_pressed:
                             debug_mode=True
                     )
 
-
-
-        # def show_home_clinic(row):
-        #     if "more" not in row["icon"]:
-        #         if row["home_clinic"] == 0:
-        #             return "🟠"
-        #         if row["home_clinic"] == 1:
-        #             return "🟡"
-        #         if row["home_clinic"] == 2:
-        #             return "🟢"
-        #         if row["home_clinic"] == 3:
-        #             return "🔵"
-        #         if row["home_clinic"] == 4:
-        #             return "🟣"
-        #         if row["home_clinic"] == 5:
-        #             return "🟤"
-        #         if row["home_clinic"] == 6:
-        #             return "⚫"
-        #         if row["home_clinic"] == 7:
-        #             return "⚪"
-        #         if row["home_clinic"] == 8:
-        #             return "🔶"
-        #         if row["home_clinic"] == 9:
-        #             return "🔷"
-        #         if row["home_clinic"] == 10:
-        #             return "🟩"
-        #         else:
-        #             return row["icon"]
-        #     else:
-        #         return row["icon"]
-
-        # full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(show_home_clinic, axis=1))
-
-
         def show_priority_icon(row):
             if "more" not in row["icon"]:
                 if row["pathway"] == 2:
-                        return "🚨"
+                    return "🚨"
                 else:
                     return f"{row['icon']}"
             else:
@@ -285,33 +227,63 @@ if button_run_pressed:
             debug_mode=False
         )
 
-        st.plotly_chart(fig)
-
-        st.dataframe(event_log_df)
-
-        # Average interval for low intensity and high intensity
-        st.subheader("Are the intervals between appointments correct?")
-        st.markdown("""
-        Goal:
-
-        LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
-
-        HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
-        """)
-
-        # Look at time from joining waiting list to booking
-
-        # Look at average number of appointments (distribution)
-
-
-        st.dataframe(
-            event_log_df
-            .dropna(subset='follow_up_intensity')
-            .query('event_original == "have_appointment"')
-            .groupby('follow_up_intensity')['interval']
-            .describe()
-            .T
+        tab_summary, tab1,  tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+            ["Results Summary", "Animated Event Log", "Queue Sizes","Time From Referral to Booking",
+             "Wait for Assessment", "Follow-up Appointment Stats", "Utilisation",
+             "Caseload Sizes", "Full Event Log"]
         )
+
+        with tab_summary:
+            st.markdown("Placeholder")
+            # Waiting list size over time (is it steady-state or out of control?)
+
+            # Distribution of assessment waits by priority (do they meet target)
+
+            # Distribution of inter-appointment waits (are they in tolerances)
+
+            # Utilisation of appointment slots
+
+            # Caseload sizes over time
+
+
+
+
+        with tab4:
+            st.markdown("### Wait for initial appointment")
+            st.dataframe(
+                results_summary(results_all, results_low, results_high)
+                )
+
+        with tab1:
+            st.plotly_chart(fig)
+
+        with tab8:
+            st.dataframe(event_log_df)
+
+        with tab5:
+            # Average interval for low intensity and high intensity
+            st.subheader("Are the intervals between appointments correct?")
+            st.markdown("""
+            Goal:
+
+            LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
+
+            HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
+            """)
+
+            # Look at time from joining waiting list to booking
+
+            # Look at average number of appointments (distribution)
+
+
+            st.dataframe(
+                event_log_df
+                .dropna(subset='follow_up_intensity')
+                .query('event_original == "have_appointment"')
+                .groupby('follow_up_intensity')['interval']
+                .describe()
+                .T
+            )
     # fig.show()
 
 #TODO
@@ -327,42 +299,42 @@ if button_run_pressed:
 # that can be considered when ranking queues if present
 
 #
-        st.subheader("Number of follow-up appointments per client")
-        st.markdown(
-          """
-          1 = initially triaged as low priority
-          2 = initially triaged as high priority
+            st.subheader("Number of follow-up appointments per client")
+            st.markdown(
+              """
+              1 = initially triaged as low priority
+              2 = initially triaged as high priority
 
-          high = high-intensity follow-ups recommended after assessment (7 day interval)
-          low = low-intensity follow-ups recommended after assessment (7 day interval)
-          """
-        )
-        st.dataframe(
-            event_log_df
-            .dropna(subset='follow_ups_intended')
-            .drop_duplicates(subset='patient')
-            .groupby(['pathway','follow_up_intensity'])['follow_ups_intended']
-            .describe()
-            .T
-        )
-
-        st.write(
-            event_log_df
-              .dropna(subset='follow_ups_intended')
-              .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
-              .value_counts()
-        )
-
-        st.plotly_chart(
-            px.bar(
-            event_log_df
-              .dropna(subset='follow_ups_intended')
-              .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
-              .value_counts()
-              .reset_index(drop=False),
-            x="follow_ups_intended", y="count",facet_row="pathway"
+              high = high-intensity follow-ups recommended after assessment (7 day interval)
+              low = low-intensity follow-ups recommended after assessment (7 day interval)
+              """
             )
-        )
+            st.dataframe(
+                event_log_df
+                .dropna(subset='follow_ups_intended')
+                .drop_duplicates(subset='patient')
+                .groupby(['pathway','follow_up_intensity'])['follow_ups_intended']
+                .describe()
+                .T
+            )
+
+        # st.write(
+        #     event_log_df
+        #       .dropna(subset='follow_ups_intended')
+        #       .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
+        #       .value_counts()
+        # )
+
+            st.plotly_chart(
+                px.bar(
+                event_log_df
+                  .dropna(subset='follow_ups_intended')
+                  .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
+                  .value_counts()
+                  .reset_index(drop=False),
+                x="follow_ups_intended", y="count",facet_row="pathway"
+                )
+            )
 
         # st.plotly_chart(
         #     px.bar(
@@ -374,48 +346,150 @@ if button_run_pressed:
         # )
         # )
 
-        st.subheader("Time from referral to appointment booking")
+        with tab3:
+            st.subheader("Time from referral to appointment booking")
 
-        st.write(
-            event_log_df
-            .dropna(subset='assessment_booking_wait')
-            .drop_duplicates(subset='patient')
-            .groupby('pathway')['assessment_booking_wait']
-            .describe()
-            .T
-        )
-
-        st.write(
-            event_log_df
-            .dropna(subset='assessment_booking_wait')
-            .drop_duplicates(subset='patient')
-            .groupby('pathway')[['pathway','assessment_booking_wait']]
-            .value_counts()
-        )
-
-        st.plotly_chart(
-            px.bar(
-            event_log_df
-            .dropna(subset='assessment_booking_wait')
-            .drop_duplicates(subset='patient')
-            .groupby('pathway')[['pathway','assessment_booking_wait']]
-            .value_counts()
-            .reset_index(drop=False),
-            x="assessment_booking_wait", y="count", facet_row="pathway"
+            st.write(
+                event_log_df
+                .dropna(subset='assessment_booking_wait')
+                .drop_duplicates(subset='patient')
+                .groupby('pathway')['assessment_booking_wait']
+                .describe()
+                .T
             )
-        )
 
-        st.subheader("Bookings")
+        # st.write(
+        #     event_log_df
+        #     .dropna(subset='assessment_booking_wait')
+        #     .drop_duplicates(subset='patient')
+        #     .groupby('pathway')[['pathway','assessment_booking_wait']]
+        #     .value_counts()
+        # )
 
-        st.write(bookings.iloc[WARM_UP:RUN_LENGTH,])
+            st.plotly_chart(
+                px.bar(
+                event_log_df
+                .dropna(subset='assessment_booking_wait')
+                .drop_duplicates(subset='patient')
+                .groupby('pathway')[['pathway','assessment_booking_wait']]
+                .value_counts()
+                .reset_index(drop=False),
+                x="assessment_booking_wait", y="count", facet_row="pathway"
+                )
+            )
 
-        st.subheader("Remaining Slots")
+        # st.subheader("Bookings")
 
-        st.write(available_slots.iloc[WARM_UP:RUN_LENGTH,])
+        # st.write(bookings.iloc[WARM_UP:RUN_LENGTH,])
 
-        st.subheader("Slot Utilisation - Slots Remaining")
+        # st.subheader("Remaining Slots")
 
-        st.write(
-            (bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
-            ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()
-                 )
+        # st.write(available_slots.iloc[WARM_UP:RUN_LENGTH,])
+
+        with tab6:
+            st.subheader("Slot Utilisation - Slots Remaining")
+
+            st.write(
+                ((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
+                ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T
+                    )
+
+        with tab7:
+
+
+            st.subheader("Daily Caseload Snapshots")
+
+            cl = pd.DataFrame(daily_caseload_snapshots["caseload_day_end"].tolist())
+            cl_filtered = cl.iloc[WARM_UP:RUN_LENGTH,:]
+
+            st.write(cl_filtered)
+
+            st.plotly_chart(
+                px.line(
+                cl_filtered.reset_index(drop=False).melt(id_vars=["index"], var_name="clinician", value_name="caseload"),
+                x="index",
+                y= "caseload",
+                color="clinician"
+                )
+            )
+
+        with tab2:
+            st.subheader("Waiting List over Time")
+
+            daily_position_counts = []
+
+            for day in range(RUN_LENGTH):
+                # First limit to anyone who hasn't left the system yet
+                departed = event_log_df[
+                    (event_log_df["time"] <= day) &
+                    (event_log_df["event"] == "depart")]["patient"].tolist()
+                # Filter down to events that have occurred at or before this day
+                upto_now = event_log_df[(event_log_df["time"] <= day)
+                                        & (event_log_df["event"] != "arrival")
+                                        & (~event_log_df["patient"].isin(departed))]
+                # Now take the latest event for each person
+                latest_event_upto_now = upto_now.sort_values("time").groupby("patient").tail(1)
+                for event_type in event_log_df["event_original"].unique():
+                    snapshot_count = len(latest_event_upto_now[(latest_event_upto_now["event_original"] == event_type)])
+                    daily_position_counts.append(
+                        {"day": day,
+                        "event": event_type,
+                        "count": snapshot_count}
+                    )
+
+            daily_position_counts = pd.DataFrame(daily_position_counts)
+
+            st.plotly_chart(
+                px.bar(
+                    daily_position_counts[daily_position_counts["event"] != "depart"],
+                    x="event",
+                    y="count",
+                    animation_frame="day",
+                    range_y=[0, max(daily_position_counts["count"])]
+                ),
+                use_container_width=True
+            )
+
+            st.subheader("Waiting list sizes over time")
+            #TODO: Add box indicating warm-up period
+            st.plotly_chart(
+                px.line(
+                    daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
+                                          (daily_position_counts["event"] == "appointment_booked_waiting") |
+                                          (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")],
+                  x="day",
+                  y="count",
+                  color="event"
+                ),
+                use_container_width=True
+
+            )
+
+            st.subheader("Balance between people arriving in the system and departing")
+
+            st.write(event_log_df[(event_log_df["event"] == "arrival") |
+                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().sort_values('time'))
+
+            st.plotly_chart(
+                px.line(
+                    event_log_df[(event_log_df["event"] == "arrival") |
+                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time'),
+                  x="time",
+                  y="count",
+                  color="event"
+                ),
+                use_container_width=True
+
+            )
+
+
+        # st.plotly_chart(
+        #     px.line(
+        #     event_log_df
+        #       .dropna(subset='follow_ups_intended')
+        #       .drop_duplicates(subset='patient')[['pathway','follow_ups_intended']]
+        #       .value_counts()
+        #       .reset_index(drop=False),
+        #     x="follow_ups_intended", y="count",facet_row="pathway"
+        #     )
+        # )
