@@ -12,6 +12,7 @@ from examples.ex_5_community_follow_up.simulation_execution_functions import sin
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
 from st_aggrid import AgGrid
+from plotly.subplots import make_subplots
 # from plotly.subplots import make_subplots
 # from helper_functions import d2
 
@@ -23,6 +24,8 @@ st.set_page_config(layout="wide",
 gc.collect()
 
 st.title("Mental Health - Appointment Booking Model")
+
+st.warning("Note that at present this only runs a single replication of the simulation model. Multiple replications should be run with different random seeds to ensure a good picture of potential variability is created.")
 
 with st.expander("Click here for additional details about this model"):
     st.markdown(
@@ -133,7 +136,7 @@ if button_run_pressed:
                                        demand_file=referrals,
                                        annual_demand=annual_demand)
 
-        results_all, results_low, results_high, event_log, bookings, available_slots, daily_caseload_snapshots = single_run(args = scenarios['pooled'])
+        results_all, results_low, results_high, event_log, bookings, available_slots, daily_caseload_snapshots, daily_arrivals = single_run(args = scenarios['pooled'])
         st.subheader("Clinic Simulation")
 
         event_log_df = pd.DataFrame(event_log)
@@ -267,6 +270,9 @@ if button_run_pressed:
 
         for day in range(RUN_LENGTH):
             # First limit to anyone who hasn't left the system yet
+            # Get a list of all people who have departed on or before the day
+            # of interest as we can then remove them from the dataframe
+            # at the next step
             departed = event_log_df[
                 (event_log_df["time"] <= day) &
                 (event_log_df["event"] == "depart")]["patient"].tolist()
@@ -301,7 +307,8 @@ if button_run_pressed:
                 px.line(
                     daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
                                           (daily_position_counts["event"] == "appointment_booked_waiting") |
-                                          (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")],
+                                          (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")  |
+                                          (daily_position_counts["event"] == "have_appointment")],
                   x="day",
                   y="count",
                   color="event"
@@ -412,14 +419,52 @@ if button_run_pressed:
                 st.subheader("Slot Utilisation - % of Slots Used")
 
                 st.write(
-                    round((((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
-                    ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T)*100,1)
+                    round(
+                        (((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
+                          ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T
+                          )*100,
+                          1
                         )
+                      )
 
             # Caseload sizes over time
+            with col6:
+                st.subheader("Daily Arrivals (Including Rejected)")
+                # st.write(daily_arrivals)
+                # Want two trendlines on the same fig
+                # Using answer from
+                # https://community.plotly.com/t/displaying-2-trendlines-for-1-set-of-data-with-plotly/68972/2
+                fig_arrivals = go.Figure(make_subplots(rows=1, cols=1))
+                fig_arrivals_1 = px.scatter(
+                        pd.DataFrame(pd.Series(daily_arrivals).value_counts()).reset_index(drop=False),
+                        x="index",
+                        y="count",
+                        trendline="rolling",
+                        opacity=0.4,
+                        trendline_options=dict(window=7)#,
+                    )
+                fig_arrivals_2 = px.scatter(
+                        pd.DataFrame(pd.Series(daily_arrivals).value_counts()).reset_index(drop=False),
+                        x="index",
+                        y="count",
+                        trendline="rolling",
+                        trendline_options=dict(window=60),
+                        color_discrete_sequence=['red']
+                    )
+                fig_arrivals_2.data = [t for t in fig_arrivals_2.data if t.mode == "lines"]
+                fig_trace = []
 
+                for trace in range(len(fig_arrivals_1["data"])):
+                    fig_trace.append(fig_arrivals_1["data"][trace])
+                for trace in range(len(fig_arrivals_2["data"])):
+                    fig_trace.append(fig_arrivals_2["data"][trace])
 
+                for traces in fig_trace:
+                    fig_arrivals.append_trace(traces, row=1, col=1)
 
+                st.plotly_chart(
+                    fig_arrivals, use_container_width=True
+                )
 
         with tab4:
             st.markdown("### Wait for initial appointment")

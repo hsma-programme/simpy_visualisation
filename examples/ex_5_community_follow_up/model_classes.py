@@ -825,10 +825,12 @@ class PatientReferral(object):
                 self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] -= 0.5
             # if low priority has high intensity follow up then we need to up
             # the number of caseload slots they are using from 0.5 to 1:
-            if self.follow_up_intensity == 1 and int(self.priority) == 1:
+            elif self.follow_up_intensity == 1 and int(self.priority) == 1:
                 self.args.existing_caseload[1:].iloc[int(self.booked_clinic)] += 0.5
             # Otherwise caseload remains as it was set initially when they were booked in
             # for assessment
+            else:
+                pass
 
             # Now sample how many follow-up appointments they need
             if self.follow_up_intensity == 1: # high-intensity follow-up
@@ -880,7 +882,10 @@ class PatientReferral(object):
                     'follow_up': i,
                     'follow_up_intensity': 'high' if self.follow_up_intensity == 1 else 'low',
                     'follow_ups_intended': num_appts,
+                    # plus one to ensure this doesn't end up preventing them from actually being
+                    # at the appointment at some point
                     'time': self.env.now + 1
+                    'true_time': self.env.now
                     }
                 )
 
@@ -923,22 +928,62 @@ class PatientReferral(object):
                 'event_type': 'arrival_departure',
                 'event': 'depart',
                 'home_clinic': int(self.home_clinic),
-                'time': self.env.now+1}
+                # Add 1 so that when displaying we don't prioritise departure above
+                # displaying as being at an appointment (else they happen effectively
+                # at the same time and this may be selected as most recent activity
+                # for display)
+                'time': self.env.now + 1,
+                'true_time': self.env.now
+                }
             )
             print(f"Patient {self.identifier} (intensity: {self.follow_up_intensity}) departs after {num_appts} follow-ups complete")
 
 class AssessmentReferralModel(object):
     '''
-    Implements the Mental Wellbeing and Access 'Assessment Referral'
+    Adapted from a model that implements the Mental Wellbeing and Access 'Assessment Referral'
     model in Pitt, Monks and Allen (2015). https://bit.ly/3j8OH6y
 
-    Patients arrive at random and in proportion to the regional team.
-
+    In original model, patients arrive at random and in proportion to the regional team.
     Patients may be seen by any team identified by a pooling matrix.
     This includes limiting a patient to only be seen by their local team.
 
-    The model reports average waiting time and can be used to compare
-    full, partial and no pooling of appointments.
+    In this version of the model, patients arrive roughly in line with a desired
+    annual number of arrivals distribution.
+    Patients may be discharged before assessment if deemed inappropriate for the service.
+    While patients initially have a different 'home clinic' (due to modifying the existing model),
+    this is effectively ignored and, if deemed appropriate, they are booked in with any clinician
+    to begin with based on available capacity.
+
+    Patients are classified as high or low priority on referral.
+    High priority patients go to the front of a queue of patients who have not yet been booked in
+    for their assessment appointment.
+
+    When booking patient in, the total caseload of the clinicians is taken into account. The aim of this
+    check is to avoid taking on too many clients relative to the number of clinical slots they have
+    available per week. The max caseload defaults to the number of clinical slots (though bear in mind
+    that a patient being seen every other week will take up 0.5 slots, not 1).
+    1 weekly appointment = 1 caseload slot
+    2 weekly appointments = 2 caseload slots (not implemented here)
+    1 appointment every other week = 0.5 caseload slots
+    and so on.
+    The caseload can be multiplied by a factor to allow more clients to exist on caseload at any one time.
+
+    After referral, a sampling distribution is consulted to determine whether the client is discharged at this point
+    or continues on to have some number of regular repeat appointments.
+
+    If they are going to continue, it will also be determined whether they are having high- or low-intensity therapy.
+    High-priority patients are most likely to go on to high-intensity therapy (every week - 1 caseload slot) but have
+    a chance of requiring low intensity.
+    Low-priority patients are most likely to go on to low-intensity therapy (every other week - 0.5 caseload slots) but have
+    a chance of requiring high intensity.
+
+    A sampling distribution is then used to determine the number of follow-up appointments each patient will have, with
+    different distributions used for the different intensities (and lower-intensity patients requiring fewer
+    sessions on average).
+
+    Patients will then exit the simulation after this number of appointments has elapsed.
+
+    Various metrics are available as outputs, along with full event logs that can support animations.
 
     '''
     def __init__(self, args):
@@ -1243,6 +1288,8 @@ class AssessmentReferralModel(object):
 
         trace(f"Results high - len {len(results_high)}")
 
+        results_arrivals = [p.arrival_day for p in self.referrals]
+
         self.results_all = results_all
         self.results_low = results_low
         self.results_high = results_high
@@ -1250,3 +1297,4 @@ class AssessmentReferralModel(object):
         self.bookings = self.args.bookings
         self.available_slots = self.args.available_slots
         self.daily_caseload_snapshots = pd.DataFrame(self.daily_caseload_snapshots)
+        self.results_daily_arrivals = results_arrivals
