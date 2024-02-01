@@ -884,7 +884,7 @@ class PatientReferral(object):
                     'follow_ups_intended': num_appts,
                     # plus one to ensure this doesn't end up preventing them from actually being
                     # at the appointment at some point
-                    'time': self.env.now + 1
+                    'time': self.env.now + 1,
                     'true_time': self.env.now
                     }
                 )
