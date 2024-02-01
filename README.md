@@ -24,9 +24,17 @@ https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/2995198
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/12e5cf33-7ce3-4f76-b621-62ab49903113
 
-- **a community mental health pathway**, showing the wait to an appointment as well as highlighting 'urgent' patients with a different icon. 
+- **a community mental health assessment pathway**, showing the wait to an appointment as well as highlighting 'urgent' patients with a different icon. 
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/80467f76-90c2-43db-bf44-41ec8f4d3abd
+
+- **a community mental health assessment pathway with pooling of clinics**, showing the 'home' clinic for clients via icon so the balance between 'home' and 'other' clients can be explored. 
+
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/9f1378f3-1688-4fc1-8603-bd75cfc990fb
+
+- **a community mental health assessment and treatment pathway**, showing the movement of clients between a wait list, a booking list, and returning for repeat appointments over a period of time.
+
+https://github.com/Bergam0t/simpy_visualisation/assets/29951987/1cfe48cf-310d-4dc0-bfc2-3c2185e02f0f
 
 # Creating a visualisation from an existing model
 
@@ -35,7 +43,7 @@ Two key things need to happen to existing models to work with the visualisation 
 2. Logging needs to be added at key points: **arrival, (queueing, resource use start, resource use end), departure**
 where the steps in the middle can be repeated for as many queues and resource types as required
 
-## All simpy resources need to be changed to simpy stores containing a custom resource with an ID attribute 
+## 1. All simpy resources need to be changed to simpy stores containing a custom resource with an ID attribute 
 
 To allow the use of resources to be visualised correctly - with entities staying with the same resource throughout the time they are using it - it is essential to be able to identify and track individual resources. 
 
@@ -93,7 +101,7 @@ This becomes slightly more complex with conditional requesting (for example, whe
 The benefit of this is that when we are logging, we can use the `.id_attribute` attribute of the custom resource to record the resource that was in use.
 This can have wider benefits for monitoring individual resource utilisation within your model as well. 
 
-## Logging needs to be added at key points
+## 2. Logging needs to be added at key points
 
 The animation function needs to be passed an event log with the following layout:
 
@@ -106,7 +114,8 @@ The animation function needs to be passed an event log with the following layout
 | 12      | Primary  | resource_use_end  | post_surgery_stay_ends   | 1.9  | 4           |
 | 15      | Revision | resource_use      | post_survery_stay_begins | 1.9  | 4           |
 
-One easy way to achieve this is by appending dictionaries to a list at each important point in the process. For example:
+One easy way to achieve this is by appending dictionaries to a list at each important point in the process. 
+For example:
 
 ```{python}
 event_log = []
@@ -122,9 +131,15 @@ self.event_log.append(
   )
 ```
 
+The list of dictionaries can then be converted to a panadas dataframe using 
+```{python}
+pd.DataFrame(event_log)
+```
+and passed to the animation function where required.
+
 # Models used as examples
 
-## Emergency department (Treatment Centre) model:
+## Emergency department (Treatment Centre) model
 Monks.T, Harper.A, Anagnoustou. A, Allen.M, Taylor.S. (2022) Open Science for Computer Simulation https://github.com/TomMonks/treatment-centre-sim
 
 The layout code for the emergency department model: https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit
@@ -132,4 +147,10 @@ The layout code for the emergency department model: https://github.com/hsma-prog
 ## The hospital efficiency project model
 Harper, A., & Monks, T. Hospital Efficiency Project Orthopaedic Planning Model Discrete-Event Simulation [Computer software]. https://doi.org/10.5281/zenodo.7951080 
 https://github.com/AliHarp/HEP/tree/main
+
+## Simulation model with scheduling example 
+Monks, T.
+https://github.com/health-data-science-OR/stochastic_systems
+https://github.com/health-data-science-OR/stochastic_systems/tree/master/labs/simulation/lab5
+
 
