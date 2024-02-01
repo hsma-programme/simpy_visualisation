@@ -38,7 +38,7 @@ TRACE = False
 
 from examples.distribution_classes import Bernoulli, Discrete, Poisson, Lognormal
 
-def generate_seed_vector(one_seed_to_rule_them_all=42, size=20):
+def generate_seed_vector(one_seed_to_rule_them_all=42, size=30):
     '''
     Return a controllable numpy array
     of integer seeds to use in simulation model.
@@ -553,7 +553,7 @@ class PatientReferral(object):
 
     '''
     def __init__(self, env, args, referral_t, home_clinic,
-                 booker,
+                 booker, arrival_number,
                  event_log, identifier, wait_store):
         self.env = env
         self.args = args
@@ -567,6 +567,10 @@ class PatientReferral(object):
 
         self.event_log = event_log
         self.identifier = identifier
+
+        self.arrival_day = identifier.split('_')[0]
+        self.arrival_order_within_day = identifier.split('_')[1]
+        self.arrival_number = arrival_number
 
         #performance metrics
         self.waiting_time = None
@@ -622,7 +626,10 @@ class PatientReferral(object):
             # PUT THEM IN THE STORE AND GO TO THE NEXT PROCESS
             trace(f"Standard Referral {self.identifier} - Putting into referral queue")
 
-            self.wait_store.put(PrioritizedItem(100, self))
+            # Priority queue doesn't have order stability within priorities, so important to set priority
+            # in such a way that everyone has their own distinct priority that will put them in the correct point
+            # in the queue
+            self.wait_store.put(PrioritizedItem(self.arrival_number+1000000, self), block=False)
             # Once they are in the store, the simulation will check once every day how many people can be taken
             # out of the store and booked in for their assessment and ongoing regular appointments
 
@@ -635,7 +642,7 @@ class PatientReferral(object):
             # PUT THEM IN THE STORE AND GO TO THE NEXT PROCESS
             trace(f"Urgent Referral {self.identifier} - Putting to front of referral queue")
             # Lower numbers go to the front of the queue
-            self.wait_store.put(PrioritizedItem(1, self))
+            self.wait_store.put(PrioritizedItem(self.arrival_number, self), block=False)
 
         self.event_log.append(
                 {'patient': self.identifier,
@@ -984,6 +991,8 @@ class AssessmentReferralModel(object):
 
         '''
         #loop a day at a time.
+        total_arrivals = 0
+
         for t in itertools.count():
             trace("##################")
             trace(f"# Day {t}")
@@ -993,6 +1002,9 @@ class AssessmentReferralModel(object):
 
             #loop through all referrals recieved that day
             for i in range(n_referrals):
+
+                total_arrivals += (i+1) # plus one as will start at 0
+
                 #sample clinic based on empirical proportions
                 clinic_id = self.args.clinic_dist.sample()
                 clinic = self.args.clinics[clinic_id]
@@ -1019,6 +1031,7 @@ class AssessmentReferralModel(object):
                                               booker=assessment_booker,
                                               event_log=self.event_log,
                                               identifier=f"{t}_{i}",
+                                              arrival_number=total_arrivals,
                                               wait_store=self.args.waiting_for_clinician_store)
 
                     #start a referral assessment process for patient.
