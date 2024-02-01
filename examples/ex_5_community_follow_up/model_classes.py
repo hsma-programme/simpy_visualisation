@@ -574,6 +574,7 @@ class PatientReferral(object):
 
         #performance metrics
         self.waiting_time = None
+        self.num_appts = None
 
         self.follow_up_intensity = None
 
@@ -672,10 +673,10 @@ class PatientReferral(object):
             available_caseload = (
                 caseload_slots_per_clinician - self.args.existing_caseload.tolist()[1:]
                 )
-            # trace(f"Checking available clinicians when booking assessment appointment. " \
-            #       f"Caseload slots available: {sum([c if c>0 else 0 for c in available_caseload])} ({available_caseload})")
+            print(f"Checking available clinicians when booking assessment appointment. " \
+                  f"Caseload slots available: {sum([c if c>0 else 0 for c in available_caseload])} ({available_caseload})")
             # trace(f"Total theoretical caseload: {caseload_slots_per_clinician}")
-            # trace(f"Total current caseload per clinician: {self.args.existing_caseload.tolist()[1:]}")
+            # print(f"Total current caseload per clinician: {self.args.existing_caseload.tolist()[1:]}")
             clinicians_with_slots = [True if c >= 0.5 else False for c in available_caseload]
             return clinicians_with_slots
 
@@ -794,6 +795,7 @@ class PatientReferral(object):
                 'home_clinic': int(self.home_clinic),
                 'time': self.env.now+1}
             )
+            print(f"Patient {self.identifier} (priority: {self.priority}) departs after assessments without follow-ups")
             # If assessed as not needing ongoing service, we can reduce the clinician's caseload
             # which will have at this point been set based on their most likely follow-up intensity
             # (weekly for high intensity so 1 slot, fortnightly for low intensity so 0.5 slots)
@@ -841,6 +843,8 @@ class PatientReferral(object):
                     args = self.args,
                     ideal_frequency=LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL,
                     clinic_id=self.booked_clinic)
+
+            self.num_appts = num_appts
 
             trace(f"Client {self.identifier} (priority: {self.priority}) assessed as needing" \
                   f" {num_appts} appointments at intensity {self.follow_up_intensity}")
@@ -921,6 +925,7 @@ class PatientReferral(object):
                 'home_clinic': int(self.home_clinic),
                 'time': self.env.now+1}
             )
+            print(f"Patient {self.identifier} (intensity: {self.follow_up_intensity}) departs after {num_appts} follow-ups complete")
 
 class AssessmentReferralModel(object):
     '''
@@ -994,11 +999,12 @@ class AssessmentReferralModel(object):
         total_arrivals = 0
 
         for t in itertools.count():
-            trace("##################")
-            trace(f"# Day {t}")
-            trace("##################")
+            print("##################")
+            print(f"# Day {t}")
+            print("##################")
             #total number of referrals today
             n_referrals = self.args.arrival_dist.sample()
+            print(f"{n_referrals} patients arrive in system")
 
             #loop through all referrals recieved that day
             for i in range(n_referrals):
@@ -1006,6 +1012,10 @@ class AssessmentReferralModel(object):
                 total_arrivals += (i+1) # plus one as will start at 0
 
                 #sample clinic based on empirical proportions
+                # hangover from model this was based on - this effectively doesn't matter here
+                # as the pooling is set for clients to then be able to book in with *any* clinician
+                # for their initial appointment
+                # however, as doesn't have a negative impact, not worth removing!
                 clinic_id = self.args.clinic_dist.sample()
                 clinic = self.args.clinics[clinic_id]
 
@@ -1075,6 +1085,7 @@ class AssessmentReferralModel(object):
                         'time': self.env.now + 1
                         }
                     )
+                    print(f"Patient {t}_{i} discharged before assessment as unsuitable for service")
 
             # Finish iterating per patient
 
@@ -1170,7 +1181,7 @@ class AssessmentReferralModel(object):
                 trace("Exiting loop position 1")
                 break
 
-            trace(f"{self.args.waiting_for_clinician_store.qsize()} patients still waiting to be booked in")
+            print(f"{self.args.waiting_for_clinician_store.qsize()} patients still waiting to be booked in")
 
             # Get someone out of the store of patients waiting for bookings
             patient_front_of_wl = self.args.waiting_for_clinician_store.get().item
@@ -1182,7 +1193,7 @@ class AssessmentReferralModel(object):
             # (as they wouldn't overload that clinician)
             # But here we just have low priority patients in our store because any
             # high priority patients have gone straight to being booked in
-            trace(f"Patient {patient_front_of_wl.identifier} (priority: {patient_front_of_wl.priority}) removed from store")
+            print(f"Patient {patient_front_of_wl.identifier} (priority: {patient_front_of_wl.priority}) removed from store")
             yield self.env.process(patient_front_of_wl.execute_assessment_booking())
             trace(f"Assessment booking process complete for patient {patient_front_of_wl.identifier}")
 

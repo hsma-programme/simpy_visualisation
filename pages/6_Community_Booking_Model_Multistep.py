@@ -55,7 +55,7 @@ shifts_edited.index = [0,1,2,3,4,5,6]
 # Total caseload slots available
 with st.expander("Click here to adjust caseload targets"):
     CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
-                                       min_value=0.75, max_value=2.0, step=0.01, value=1.0)
+                                       min_value=0.5, max_value=4.0, step=0.01, value=1.0)
 
     # Adjust caseload target
     st.markdown(
@@ -77,7 +77,8 @@ with st.expander("Click here to adjust caseload targets"):
       caseload_default_adjusted
     )
 
-st.write(f"Total caseload slots available: {np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
+st.write(f"Total appointment slots available per week: {np.floor(shifts_edited.sum()).sum()}")
+st.write(f"Total caseload slots available after adjustment by multiplier ({CASELOAD_TARGET_MULTIPLIER}): {np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
 
 col_setup_1, col_setup_2 = st.columns(2)
 with col_setup_1:
@@ -406,6 +407,14 @@ if button_run_pressed:
                 )
 
             # Utilisation of appointment slots
+            col5, col6 = st.columns(2)
+            with col5:
+                st.subheader("Slot Utilisation - % of Slots Used")
+
+                st.write(
+                    round((((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
+                    ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T)*100,1)
+                        )
 
             # Caseload sizes over time
 
@@ -422,8 +431,8 @@ if button_run_pressed:
             st.plotly_chart(fig)
 
         with tab8:
-            # st.dataframe(event_log_df)
-            AgGrid(event_log_df)
+            st.dataframe(event_log_df)
+            # AgGrid(event_log_df)
 
         with tab5:
             # Average interval for low intensity and high intensity
@@ -552,11 +561,11 @@ if button_run_pressed:
         # st.write(available_slots.iloc[WARM_UP:RUN_LENGTH,])
 
         with tab6:
-            st.subheader("Slot Utilisation - Slots Remaining")
+            st.subheader("Slot Utilisation - % of Slots Used")
 
             st.write(
-                ((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
-                ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T
+                round((((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
+                ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T)*100,1)
                     )
 
         with tab7:
