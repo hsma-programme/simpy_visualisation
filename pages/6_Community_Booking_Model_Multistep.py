@@ -33,6 +33,7 @@ with st.expander("Click here for additional details about this model"):
           - It could be incorporated into a larger model where different resources - i.e. different sets of appointment books - are involved in different steps
           - It could be scaled up to look at multiple clinics, including a step where patients are potentially routed to a different clinic depending on availability
           - Different appointment types could take up different numbers of slots (e.g. an assessment appointment could be 1.5 slots while a regular appointment is 1 slot)
+          - A preference for weekend vs weekday appointments could be introduced for certain clients
         """
     )
 
@@ -42,7 +43,14 @@ shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 
 number_of_clinicians = st.number_input("Number of Clinicians (caution: changing this will reset any changes you've made to shifts below)",
                 min_value=1, max_value=20, value=8, step=1)
-shifts_edited = st.data_editor(shifts.iloc[:,:number_of_clinicians])
+
+shifts.index = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+shifts_edited = st.data_editor(
+    shifts.iloc[:,:number_of_clinicians]
+    )
+
+# Change index back to 0 to 6 for further steps
+shifts_edited.index = [0,1,2,3,4,5,6]
 
 # Total caseload slots available
 with st.expander("Click here to adjust caseload targets"):
@@ -71,21 +79,31 @@ with st.expander("Click here to adjust caseload targets"):
 
 st.write(f"Total caseload slots available: {np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
 
-annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
-prop_high_priority = st.slider("Select proportion of high priority patients (will go to front of booking queue)", 0.0, 0.9, 0.03, 0.01)
+col_setup_1, col_setup_2 = st.columns(2)
+with col_setup_1:
+    annual_demand = st.slider("Select average annual demand", 100, 5000, 700, 10)
+with col_setup_2:
+    prop_high_priority = st.slider("Select proportion of high priority patients (will go to front of booking queue)", 0.0, 0.9, 0.03, 0.01)
 # prop_carve_out = st.slider("Select proportion of carve-out (slots reserved for high-priority patients)", 0.0, 0.9, 0.0, 0.01)
 # Note - need to check if carve-out still works before reintegrating - it may be that changes to the way appointments are booked means that
 # high-priority patients are no longer able to access them
 # Will also need to update the creation of the scenario object to reintroduce it there
 
-WARM_UP = st.slider(label = "How many days should the simulation warm-up for before collecting results?",
-                               min_value=0, max_value=365*2,
-                               step=5, value=365)
+col_setup_3, col_setup_4 = st.columns(2)
+with col_setup_3:
+    WARM_UP = st.slider(label = "How many days should the simulation warm-up for before collecting results?",
+                                  min_value=0, max_value=365*2,
+                                  step=5, value=365)
 
+with col_setup_4:
+    RESULTS_COLLECTION = st.slider(label = "How many days should results be collected for?",
+                                  min_value=100, max_value=365*5,
+                                  step=5, value=365*3)
 
-RESULTS_COLLECTION = st.slider(label = "How many days should results be collected for?",
-                               min_value=100, max_value=365*5,
-                               step=5, value=365*3)
+col_setup_5, col_setup_6 = st.columns(2)
+
+with col_setup_5:
+    SEED = st.slider("Set Seed", 0, 1000, 42, 1)
 
 RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
 
@@ -105,7 +123,7 @@ if button_run_pressed:
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
                                       #  prop_carve_out=prop_carve_out,
-                                       seeds=generate_seed_vector(),
+                                       seeds=generate_seed_vector(SEED),
                                        slots_file=shifts_edited,
                                        pooling_file=pooling,
                                        existing_caseload_file=caseload,
