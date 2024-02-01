@@ -1,4 +1,7 @@
-WORK IN PROGRESS
+***WORK IN PROGRESS***
+Note that at present this repository contains a file with functions that can be used to generate animated outputs from discrete event simulation (DES) models in Python, and a series of examples discrete event simulation models with the appropriate logging added to allow visualisation. There is then a Streamlit app demonstrating the animations. 
+
+It is intended that the script will eventually be moved to a separate repository and used to create a python package, available on pypi, that will house the animation functionality, and this repository will instead remain as a library of simulation examples with animations that can be expanded and adapted. 
 
 # Introduction
 
