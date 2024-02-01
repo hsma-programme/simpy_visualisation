@@ -1,4 +1,11 @@
-WORK IN PROGRESS
+***WORK IN PROGRESS***
+
+Note that at present this repository contains a file with functions that can be used to generate animated outputs from discrete event simulation (DES) models in Python, and a series of examples discrete event simulation models with the appropriate logging added to allow visualisation. There is then a Streamlit app demonstrating the animations. 
+
+**It is intended that the script will eventually be moved to a separate repository and used to create a python package, available on pypi, that will house the animation functionality, and this repository will instead remain as a library of simulation examples with animations that can be expanded and adapted.** 
+
+---
+---
 
 # Introduction
 
@@ -23,7 +30,7 @@ https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/2995198
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/12e5cf33-7ce3-4f76-b621-62ab49903113
 
-- **a community mental health assessment pathway**, showing the wait to an appointment as well as highlighting 'urgent' patients with a different icon. 
+- **a community mental health assessment pathway**, showing the wait to an appointment as well as highlighting 'urgent' patients with a different icon and showing the time from referral to appointment below the patient icons when they attend the appointment. 
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/80467f76-90c2-43db-bf44-41ec8f4d3abd
 
@@ -31,7 +38,7 @@ https://github.com/Bergam0t/simpy_visualisation/assets/29951987/80467f76-90c2-43
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/9f1378f3-1688-4fc1-8603-bd75cfc990fb
 
-- **a community mental health assessment and treatment pathway**, showing the movement of clients between a wait list, a booking list, and returning for repeat appointments over a period of time.
+- **a community mental health assessment and treatment pathway**, showing the movement of clients between a wait list, a booking list, and returning for repeat appointments over a period of time while sitting on a caseload in between.
 
 https://github.com/Bergam0t/simpy_visualisation/assets/29951987/1cfe48cf-310d-4dc0-bfc2-3c2185e02f0f
 
@@ -326,6 +333,7 @@ https://github.com/AliHarp/HEP/tree/main
 Monks, T.
 
 https://github.com/health-data-science-OR/stochastic_systems
+
 https://github.com/health-data-science-OR/stochastic_systems/tree/master/labs/simulation/lab5
 
 
