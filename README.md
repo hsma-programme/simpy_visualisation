@@ -267,6 +267,7 @@ NOTE: At present this requires you to be using an object to manage your resource
 
 # Creating the animation
 
+## Determining event positioning in the animation
 Once the event log has been created, the positions of each queue and resource must be set up. 
 
 An easy way to create this is passing a list of dictionaries to the `pd.DataFrame` function. 
@@ -302,21 +303,28 @@ The columns required are
             ])
 ```
 
-
+## Creating the animation
+There are two main ways to create the animation:
+- using the one-step function `animate_activity_log()` (see pages/1_Simple_ED_interactive, pages/2_Simple_ED_Forced_Overcrowding or pages/3_Complex_ED_Interactive for examples of this)
+- using the functions `reshape_for_animations()`, `generate_animation_df()` and `generate_animation()` separately, passing the output of each to the next step (see pages/4_HEP_Orthopaedic_Surgery, pages/5_Community_Booking_Model, or pages/6_Community_Booking_Model_Multistep for examples of this and to get an idea of the extra customisation you can introduce with this approach) 
 
 # Models used as examples
 
 ## Emergency department (Treatment Centre) model
-Monks.T, Harper.A, Anagnoustou. A, Allen.M, Taylor.S. (2022) Open Science for Computer Simulation https://github.com/TomMonks/treatment-centre-sim
+Monks.T, Harper.A, Anagnoustou. A, Allen.M, Taylor.S. (2022) Open Science for Computer Simulation 
+
+https://github.com/TomMonks/treatment-centre-sim
 
 The layout code for the emergency department model: https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit
 
 ## The hospital efficiency project model
 Harper, A., & Monks, T. Hospital Efficiency Project Orthopaedic Planning Model Discrete-Event Simulation [Computer software]. https://doi.org/10.5281/zenodo.7951080 
+
 https://github.com/AliHarp/HEP/tree/main
 
 ## Simulation model with scheduling example 
 Monks, T.
+
 https://github.com/health-data-science-OR/stochastic_systems
 https://github.com/health-data-science-OR/stochastic_systems/tree/master/labs/simulation/lab5
 
