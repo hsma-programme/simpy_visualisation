@@ -1,6 +1,5 @@
 WORK IN PROGRESS
 
-
 # Introduction
 
 Visual display of the outputs of discrete event simulations in simpy have been identified as one of the limitations of simpy, potentially hindering adoption of FOSS simulation in comparison to commercial modelling offerings or GUI FOSS alternatives such as JaamSim.
@@ -15,7 +14,7 @@ Plotly is leveraged to create the final animation, meaning that users can benefi
 
 The code has been designed to be flexible and could potentially be used with alternative simulation packages such as ciw or simmer if it is possible to provide all of the required details in the logs that are output.
 
-To develop and demonstrate the concept, it has so far been used to incorporate visualisation into three existing simpy models that were not initially designed with this sort of visualisation in mind: 
+To develop and demonstrate the concept, it has so far been used to incorporate visualisation into several existing simpy models that were not initially designed with this sort of visualisation in mind: 
 - **a minor injuries unit**, showing the utility of the model at high resolutions with branching pathways and the ability to add in a custom background to clearly demarcate process steps
 
 https://github.com/hsma-programme/Teaching_DES_Concepts_Streamlit/assets/29951987/1adc36a0-7bc0-4808-8d71-2d253a855b31
@@ -121,7 +120,7 @@ For example:
 event_log = []
 ...
 ...
-self.event_log.append(
+event_log.append(
       {'patient': id,
       'pathway': 'Revision',
       'event_type': 'resource_use',
@@ -136,6 +135,174 @@ The list of dictionaries can then be converted to a panadas dataframe using
 pd.DataFrame(event_log)
 ```
 and passed to the animation function where required.
+
+### Event types 
+
+Four event types are supported in the model: 'arrival_departure', 'resource_use', 'resource_use_end', and 'queue'. 
+
+As a minimum, you will require the use of 'arrival_departure' events and one of 
+- 'resource_use'/'resource_use_end'
+- OR 'queue'
+
+You can also use both 'resource_use' and 'queue' within the same model very effectively (see `ex_1_simplest_case`, `ex_2_branching_and_optional_paths`, and `ex_3_theatres_beds`). 
+
+#### arrival_departure
+
+Within this, a minimum of two 'arrival_departure' events per entity are mandatory - `arrival` and `depart`, both with an event_type of `arrival_departure`, as shown below.
+
+```{python}
+event_log.append(
+      {'patient': unique_entity_identifier,
+      'pathway': 'Revision',
+      'event_type': 'arrival_departure',
+      'event': 'arrival',
+      'time': env.now}
+  )
+```
+
+```{python}
+event_log.append(
+      {'patient': unique_entity_identifier,
+      'pathway': 'Revision',
+      'event_type': 'arrival_departure',
+      'event': 'depart',
+      'time': env.now}
+  )
+```
+These are critical as they are used to determine when patients should first and last appear in the model. 
+Forgetting to include a departure step for all types of patients can lead to slow model performance as the size of the event logs for individual moments will continue to increase indefinitely.
+
+### queue
+
+Queues are key steps in the model.
+
+`ex_4_community` and `ex_5_community_follow_up` are examples of models without a step where a simpy resource is used, instead using a booking calendar that determines the time that will elapse between stages for entities. 
+
+By tracking each important step in the process as a 'queue' step, the movement of patients can be accurately tracked. 
+
+Patients will be ordered by the point at which they are added to the queue, with the first entries appearing at the front (bottom-right) of the queue. 
+
+```{python}
+event_log.append(
+            {'patient': unique_entity_identifier,
+             'pathway': 'High intensity',
+             'event_type': 'queue',
+             'event': 'appointment_booked_waiting',
+             'time': self.env.now
+             }
+        )
+```
+
+While the keys shown above are mandatory, you can add as many additional keys to a step's log as desired. This can allow you to flexibly make use of the event log for other purposes as well as the animation.
+
+### resource_use and resource_use_end
+
+Resource use is more complex to include but comes with two key benefits over the queue:
+- it becomes easier to monitor the length of time a resource is in use by a single entity as users won't 'move through' the resource use stage (which can also prove confusing to less experienced viewers)
+- it becomes possible to show the total number of resources that are available, making it easier to understand how well resources are being utilised at different stages
+
+```{python}
+class CustomResource(simpy.Resource):
+    def __init__(self, env, capacity, id_attribute=None):
+        super().__init__(env, capacity)
+        self.id_attribute = id_attribute
+
+    def request(self, *args, **kwargs):
+        # Add logic to handle the ID attribute when a request is made
+        # For example, you can assign an ID to the requester
+        # self.id_attribute = assign_id_logic()
+        return super().request(*args, **kwargs)
+
+    def release(self, *args, **kwargs):
+        # Add logic to handle the ID attribute when a release is made
+        # For example, you can reset the ID attribute
+        # reset_id_logic(self.id_attribute)
+        return super().release(*args, **kwargs)
+
+triage = simpy.Store(self.env)
+
+for i in range(n_triage):
+    triage.put(
+        CustomResource(
+            env,
+            capacity=1,
+            id_attribute = i+1)
+        )
+
+# request sign-in/triage
+triage_resource = yield triage.get()
+
+event_log.append(
+    {'patient': unique_entity_identifier,
+     'pathway': 'Trauma',
+     'event_type': 'resource_use',
+     'event': 'triage_begins',
+     'time': env.now,
+     'resource_id': triage_resource.id_attribute
+    }
+)
+
+yield self.env.timeout(1)
+
+event_log.append(
+            {'patient': unique_entity_identifier,
+             'pathway': 'Trauma',
+             'event_type': 'resource_use_end',
+             'event': 'triage_complete',
+             'time': env.now,
+             'resource_id': triage_resource.id_attribute}
+        )
+
+# Resource is no longer in use, so put it back in the store 
+triage.put(triage_resource) 
+```
+When providing your event position details, it then just requires you to include an identifier for the resource.
+
+NOTE: At present this requires you to be using an object to manage your resources. This requirement is planned to be removed in a future version of the work, allowing more flexibility. 
+
+```{python}
+{'event': 'TRAUMA_stabilisation_begins', 
+ 'x': 300, 'y': 500, 'resource':'n_trauma', 'label': "Being<br>Stabilised" }
+```
+
+# Creating the animation
+
+Once the event log has been created, the positions of each queue and resource must be set up. 
+
+An easy way to create this is passing a list of dictionaries to the `pd.DataFrame` function. 
+
+The columns required are
+`event`: This must match the label used for the event in the event log
+`x`: The x coordinate of the event for the animation. This will correspond to the bottom-right hand corner of a queue, or the rightmost resource. 
+`y`: The y coordinate of the event for the animaation. This will correspond to the lowest row of a queue, or the central point of the resources. 
+`label`: A label for the stage. This can be hidden at a later step if you opt to use a background image with labels built-in. Note that line breaks in the label can be created using the HTML tag `<br>`. 
+`resource` (OPTIONAL): Only required if the step is a resource_use step. This looks at the 'scenario' object passed to the `animate_activity_log()` function and pulls the attribute with the given name, which should give the number of available resources for that step.
+
+```{python}
+        event_position_df = pd.DataFrame([
+                # Triage          
+                {'event': 'triage_wait_begins', 
+                 'x':  160, 'y': 400, 'label': "Waiting for<br>Triage"  },
+                {'event': 'triage_begins', 
+                 'x':  160, 'y': 315, 'resource':'n_triage', 'label': "Being Triaged" },
+
+                # Trauma pathway
+                {'event': 'TRAUMA_stabilisation_wait_begins', 
+                 'x': 300, 'y': 560, 'label': "Waiting for<br>Stabilisation" },
+                {'event': 'TRAUMA_stabilisation_begins', 
+                 'x': 300, 'y': 500, 'resource':'n_trauma', 'label': "Being<br>Stabilised" },
+
+                {'event': 'TRAUMA_treatment_wait_begins', 
+                 'x': 630, 'y': 560, 'label': "Waiting for<br>Treatment" },
+                {'event': 'TRAUMA_treatment_begins', 
+                 'x': 630, 'y': 500, 'resource':'n_cubicles', 'label': "Being<br>Treated" },
+
+                 {'event': 'exit', 
+                 'x':  670, 'y': 330, 'label': "Exit"}
+            ])
+```
+
+
 
 # Models used as examples
 
