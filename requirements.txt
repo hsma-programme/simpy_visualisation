@@ -31,6 +31,7 @@ pyarrow==14.0.2
 pydeck==0.8.1b0
 Pygments==2.17.2
 python-dateutil==2.8.2
+python-decouple==3.8
 pytz==2023.3.post1
 referencing==0.32.0
 requests==2.31.0
@@ -48,6 +49,7 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.6
 sphinxcontrib-serializinghtml==1.1.9
 streamlit==1.29.0
+streamlit-aggrid==0.3.4.post3
 tenacity==8.2.3
 toml==0.10.2
 toolz==0.12.0
