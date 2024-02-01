@@ -24,37 +24,52 @@ gc.collect()
 
 st.title("Mental Health - Appointment Booking Model")
 
+with st.expander("Click here for additional details about this model"):
+    st.markdown(
+        """
+        There are a range of ways this model could be adapted further:
+          - The logic/criteria used to determine whether patients are booked in or held on a waiting list prior to booking could be changed
+          - The number of priorities or potential ongoing intensities could be altered
+          - It could be incorporated into a larger model where different resources - i.e. different sets of appointment books - are involved in different steps
+          - It could be scaled up to look at multiple clinics, including a step where patients are potentially routed to a different clinic depending on availability
+          - Different appointment types could take up different numbers of slots (e.g. an assessment appointment could be 1.5 slots while a regular appointment is 1 slot)
+        """
+    )
+
 st.subheader("Weekly Slots")
 st.markdown("Edit the number of daily slots available per clinician by clicking in the boxes below, or leave as the default schedule")
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 
 number_of_clinicians = st.number_input("Number of Clinicians (caution: changing this will reset any changes you've made to shifts below)",
-                min_value=1, max_value=11, value=11, step=1)
+                min_value=1, max_value=20, value=8, step=1)
 shifts_edited = st.data_editor(shifts.iloc[:,:number_of_clinicians])
 
-CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
+# Total caseload slots available
+with st.expander("Click here to adjust caseload targets"):
+    CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
                                        min_value=0.75, max_value=2.0, step=0.01, value=1.0)
 
-# Adjust caseload target
-st.markdown(
-  """
-  The default is to aim to have as many people on caseload as you have maximum theoretical slots.
-  This can be adjusted up or down to see the impact of changing the policy.
-  """
-)
+    # Adjust caseload target
+    st.markdown(
+      """
+      The default is to aim to have as many people on caseload as you have maximum theoretical slots.
+      This can be adjusted up or down to see the impact of changing the policy.
 
-# Total caseload slots available
-caseload_default_adjusted = pd.concat(
-        [shifts_edited.sum(),
-         np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER)],
-         axis=1
-         )
-caseload_default_adjusted.columns = ["Default Caseload (Total Slots)", "Adjusted Caseload"]
-st.write(
-  caseload_default_adjusted
-)
+      Note that low intensity patients in this model take up 0.5 slots. High intensity patients take up 1 slot.
+      """
+    )
 
-st.write(f"Total caseload slots available: {round(shifts_edited.sum().sum() * CASELOAD_TARGET_MULTIPLIER,1)}")
+    caseload_default_adjusted = pd.concat(
+            [shifts_edited.sum(),
+            np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER)],
+            axis=1
+            )
+    caseload_default_adjusted.columns = ["Default Caseload (Total Slots Per Week)", "Adjusted Caseload"]
+    st.write(
+      caseload_default_adjusted
+    )
+
+st.write(f"Total caseload slots available: {np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
 
 annual_demand = st.slider("Select average annual demand", 100, 5000, 1200, 10)
 prop_high_priority = st.slider("Select proportion of high priority patients (will go to front of booking queue)", 0.0, 0.9, 0.03, 0.01)
@@ -279,11 +294,22 @@ if button_run_pressed:
             # Time from referral to booking
             with col2:
                 st.subheader("Booking Waits")
+
                 assessment_booking_waits = (event_log_df
                       .dropna(subset='assessment_booking_wait')
-                      .drop_duplicates(subset='patient')[['time','pathway', 'assessment_booking_wait']])
-                st.write(f"Average wait for booking (high priority): {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)} (Target: 7 days, Longest {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)} days)")
-                st.write(f"Average wait for booking (high priority): {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)} (Target: 14 days, Longest {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)} days)")
+                      .drop_duplicates(subset='patient')
+                      [['time','pathway', 'assessment_booking_wait']]
+                      )
+
+                st.write(f"Average wait for booking (high priority):" \
+                         f" {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)}" \
+                         f" (Target: 7 days, Longest " \
+                         f" {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 2]['assessment_booking_wait']),1)} days)")
+
+                st.write(f"Average wait for booking (low priority):" \
+                         f" {round(np.mean(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)}" \
+                         f" (Target: 14 days, Longest" \
+                         f" {round(max(assessment_booking_waits[assessment_booking_waits['pathway'] == 1]['assessment_booking_wait']),1)} days)")
 
                 st.plotly_chart(
                     px.box(
@@ -303,8 +329,16 @@ if button_run_pressed:
             col3, col4 = st.columns(2)
             with col3:
                 st.subheader("Assessment Waits")
-                st.write(f"Average wait for assessment (high priority): {round(np.mean(results_high),1)} (Target: 7 days, Longest {round(max(results_high),1)} days)")
-                st.write(f"Average wait for assessment (high priority): {round(np.mean(results_low),1)} (Target: 14 days, Longest {round(max(results_low),1)} days)")
+                print(results_high)
+                print(results_low)
+
+                if results_high:
+                    st.write(f"Average wait for assessment (high priority):" \
+                            f" {round(np.mean(results_high),1)} (Target: 7 days, Longest {round(max(results_high),1)} days)")
+
+                if results_low:
+                    st.write(f"Average wait for assessment (high priority):" \
+                            f" {round(np.mean(results_low),1)} (Target: 14 days, Longest {round(max(results_low),1)} days)")
 
                 st.plotly_chart(
                     px.box(
