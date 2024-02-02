@@ -1,5 +1,6 @@
 import gc
 import math
+import random
 
 import streamlit as st
 
@@ -45,25 +46,89 @@ with st.expander("Click here for additional details about this model"):
         """
     )
 
-st.subheader("Weekly Slots")
-st.markdown("Edit the number of daily slots available per clinician by clicking in the boxes below, or leave as the default schedule")
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 
 number_of_clinicians = st.number_input("Number of Clinicians (caution: changing this will reset any changes you've made to shifts below)",
                 min_value=1, max_value=20, value=8, step=1)
 
-shifts.index = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-shifts_edited = st.data_editor(
-    shifts.iloc[:,:number_of_clinicians]
-    )
+set_weekly_slots = st.toggle("Toggle this to set clinician slots per week instead of per day")
+
+
+if not set_weekly_slots:
+    st.subheader("Clinician Appointment Book - Set Slots Available Per Day")
+    st.markdown("Edit the number of daily slots available per clinician by clicking in the boxes below, or leave as the default schedule")
+
+    shifts_edited = shifts.copy()
+    shifts_edited.index = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    shifts_edited = st.data_editor(
+        shifts_edited.iloc[:,:number_of_clinicians]
+        )
+
+if set_weekly_slots:
+    st.subheader("Clinician Appointment Book - Set Slots Available Per Week")
+    st.markdown("""
+        Note that behind the scenes, the code will randomly distribute each clinician's appointments across different days of the week, giving them a maximum of 5 working days
+        """
+        )
+
+    shifts_daily = pd.DataFrame(shifts.iloc[:,:number_of_clinicians].sum()).reset_index()
+    # Add column to help with pivoting
+    shifts_daily['reindex'] = 0
+    shifts_daily = (shifts_daily
+         .pivot(index='reindex', columns="index", values=0)
+         .reset_index(drop=True))
+
+    shifts_edited_daily = st.data_editor(
+        shifts_daily
+        )
+    # Ensure we have a dataframe and not a series
+    shifts_edited_daily = pd.DataFrame(shifts_edited_daily)
+
+    # Approach taken from https://stackoverflow.com/questions/54353083/distribute-an-integer-amount-by-a-set-of-slots-as-evenly-as-possible
+    def distribute_shifts(shifts, days):
+        base, extra = divmod(shifts, days)
+        return [base + (i < extra) for i in range(days)]
+
+    all_clinican_shifts = []
+
+    for clinician in range(number_of_clinicians):
+        # Get the total number of slots for this clinician from the dataframe
+        # st.write(shifts_edited_daily.columns.tolist())
+        # st.write(clinician)
+        clinician_id = shifts_edited_daily.columns[clinician]
+        clinician_total_shifts = shifts_edited_daily.iloc[:,clinician].values[0]
+        # Distribute the number of shifts evenly across a list of length 7
+        # To begin with, distribute across a number of days in the week - let's go for either 4 or 5
+        clinician_shifts = distribute_shifts(clinician_total_shifts, random.randint(4, 5))
+        # Now randomly place days off amongst this to ensure that the final length is 7
+        days_to_pad = 7-len(clinician_shifts)
+
+        for i in range(days_to_pad):
+            position = random.randint(0, 6)
+            clinician_shifts.insert(position, 0)
+
+        all_clinican_shifts.append(clinician_shifts)
+
+    shifts_edited = pd.DataFrame(all_clinican_shifts).T.copy()
+
+    shifts_edited.columns = (shifts.iloc[:,:number_of_clinicians]).columns
+    shifts_edited.index = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+                           "Saturday", "Sunday"]
+
+    with st.expander("Click here to view the randomly distributed shifts that the simulation will use"):
+        st.write(shifts_edited)
 
 # Change index back to 0 to 6 for further steps
 shifts_edited.index = [0,1,2,3,4,5,6]
 
+
 # Total caseload slots available
 with st.expander("Click here to adjust caseload targets"):
-    CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
-                                       min_value=0.5, max_value=4.0, step=0.01, value=1.3)
+    CASELOAD_TARGET_MULTIPLIER = st.slider(
+        label = "What factor should target caseload be adjusted by?",
+        min_value=0.5, max_value=4.0, step=0.01, value=1.3
+        )
 
     # Adjust caseload target
     st.markdown(
@@ -506,7 +571,7 @@ if button_run_pressed:
                             This looks at the % of slots that clincian's have that end up having a booking.
                             This does not include data from the warm-up period.
                             """)
-                st.write("<b>Total % of slots used:</b> {}%".format(
+                st.write("**Total % of slots used:** {}%".format(
                    round(
                         (((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum().sum() /
                           ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum().sum())
