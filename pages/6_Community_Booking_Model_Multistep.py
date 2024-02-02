@@ -63,7 +63,7 @@ shifts_edited.index = [0,1,2,3,4,5,6]
 # Total caseload slots available
 with st.expander("Click here to adjust caseload targets"):
     CASELOAD_TARGET_MULTIPLIER = st.slider(label = "What factor should target caseload be adjusted by?",
-                                       min_value=0.5, max_value=4.0, step=0.01, value=1.0)
+                                       min_value=0.5, max_value=4.0, step=0.01, value=1.3)
 
     # Adjust caseload target
     st.markdown(
