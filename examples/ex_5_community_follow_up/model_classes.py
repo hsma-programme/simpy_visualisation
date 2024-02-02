@@ -1006,6 +1006,7 @@ class AssessmentReferralModel(object):
         self.event_log = []
 
         self.daily_caseload_snapshots = []
+        self.daily_waiting_for_booking_snapshots = []
 
         self.init_resources()
 
@@ -1139,10 +1140,14 @@ class AssessmentReferralModel(object):
             self.env.process(self.book_new_clients_if_capacity())
 
             # Record the daily caseload after all patients booked in
-            caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
+            # caseload_slots_per_clinician = (self.args.weekly_slots).sum().to_numpy().T
             self.daily_caseload_snapshots.append(
-                {'day': t, 'caseload_day_end': self.args.existing_caseload.tolist()[1:]})
+                {'day': t, 'caseload_day_end': self.args.existing_caseload.tolist()[1:]}
+                )
 
+            self.daily_waiting_for_booking_snapshots.append(
+                {'day': t, 'booking_queue_size_day_end': self.args.waiting_for_clinician_store.qsize()}
+                )
             #timestep by one day
             yield self.env.timeout(1)
 
@@ -1297,4 +1302,5 @@ class AssessmentReferralModel(object):
         self.bookings = self.args.bookings
         self.available_slots = self.args.available_slots
         self.daily_caseload_snapshots = pd.DataFrame(self.daily_caseload_snapshots)
+        self.daily_waiting_for_booking_snapshots = pd.DataFrame(self.daily_waiting_for_booking_snapshots)
         self.results_daily_arrivals = results_arrivals

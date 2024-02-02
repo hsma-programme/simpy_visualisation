@@ -1,19 +1,21 @@
 import gc
-import time
-import numpy as np
 import math
-import datetime as dt
+
 import streamlit as st
+
+import numpy as np
 import pandas as pd
+
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 from examples.ex_5_community_follow_up.model_classes import Scenario, generate_seed_vector
 from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
+
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
-from st_aggrid import AgGrid
-from plotly.subplots import make_subplots
-# from plotly.subplots import make_subplots
+# from st_aggrid import AgGrid
 # from helper_functions import d2
 
 
@@ -120,9 +122,12 @@ if button_run_pressed:
         #set up the scenario for the model to run.
         scenarios = {}
 
-        caseload = pd.read_csv("examples/ex_5_community_follow_up/data/caseload.csv").iloc[:,:number_of_clinicians+1]
-        pooling = pd.read_csv("examples/ex_5_community_follow_up/data/partial_pooling.csv").iloc[:number_of_clinicians,:number_of_clinicians+1]
-        referrals = pd.read_csv("examples/ex_5_community_follow_up/data/referrals.csv").iloc[:number_of_clinicians]
+        caseload = (pd.read_csv("examples/ex_5_community_follow_up/data/caseload.csv")
+                   .iloc[:,:number_of_clinicians+1])
+        pooling = (pd.read_csv("examples/ex_5_community_follow_up/data/partial_pooling.csv")
+                   .iloc[:number_of_clinicians,:number_of_clinicians+1])
+        referrals = (pd.read_csv("examples/ex_5_community_follow_up/data/referrals.csv")
+                     .iloc[:number_of_clinicians])
 
         scenarios['pooled'] = Scenario(RUN_LENGTH,
                                        WARM_UP,
@@ -136,7 +141,11 @@ if button_run_pressed:
                                        demand_file=referrals,
                                        annual_demand=annual_demand)
 
-        results_all, results_low, results_high, event_log, bookings, available_slots, daily_caseload_snapshots, daily_arrivals = single_run(args = scenarios['pooled'])
+        # Run the model and unpack the outputs
+        results_all, results_low, results_high, event_log, \
+        bookings, available_slots, daily_caseload_snapshots, \
+          daily_waiting_for_booking_snapshots, daily_arrivals = single_run(args = scenarios['pooled'])
+
         st.subheader("Clinic Simulation")
 
         event_log_df = pd.DataFrame(event_log)
@@ -417,6 +426,16 @@ if button_run_pressed:
             col5, col6 = st.columns(2)
             with col5:
                 st.subheader("Slot Utilisation - % of Slots Used")
+                st.write("Total % of slots used: {}%".format(
+                   round(
+                        (((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum().sum() /
+                          ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum().sum())
+                          )*100,
+                          1
+                        )
+                      )
+                )
+
 
                 st.write(
                     round(
@@ -426,6 +445,8 @@ if button_run_pressed:
                           1
                         )
                       )
+
+
 
             # Caseload sizes over time
             with col6:
@@ -472,10 +493,14 @@ if button_run_pressed:
                 results_summary(results_all, results_low, results_high)
                 )
 
+            st.markdown("### Wait from booking to initial appointment")
+
         with tab1:
+            st.subheader("Animated Event Log")
             st.plotly_chart(fig)
 
         with tab8:
+            st.subheader("Full Event Log")
             st.dataframe(event_log_df)
             # AgGrid(event_log_df)
 
@@ -609,28 +634,52 @@ if button_run_pressed:
             st.subheader("Slot Utilisation - % of Slots Used")
 
             st.write(
+                    round(
+                        (((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum().sum() /
+                          ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum().sum())
+                          )*100,
+                          1
+                        )
+                      )
+
+            st.write(
                 round((((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum() /
                 ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum()).T)*100,1)
                     )
 
         with tab7:
-
-
             st.subheader("Daily Caseload Snapshots")
 
             cl = pd.DataFrame(daily_caseload_snapshots["caseload_day_end"].tolist())
             cl_filtered = cl.iloc[WARM_UP:RUN_LENGTH,:]
 
             st.write(cl_filtered)
-
+            cl_plotting = cl_filtered.reset_index(drop=False).melt(id_vars=["index"], var_name="clinician", value_name="caseload")
             st.plotly_chart(
                 px.line(
-                cl_filtered.reset_index(drop=False).melt(id_vars=["index"], var_name="clinician", value_name="caseload"),
+                cl_plotting,
                 x="index",
                 y= "caseload",
-                color="clinician"
+                color="clinician",
+                range_y=[0, max(cl_plotting["caseload"])]
                 )
             )
+
+            st.subheader("Total Caseload in Use By Day")
+            st.write(cl_filtered.sum(axis=1))
+
+            st.subheader("% Caseload in Use By Day")
+            st.write(cl_filtered.sum(axis=1)/(np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()))
+
+            px.line((cl_filtered.sum(axis=1)/(np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum())).reset_index(),
+                    x="index", y=0)
+
+            # st.plotly_chart(
+            #     px.line(
+            #         cl_filtered.sum(axis=1),
+            #         x=
+            #     )
+            # )
 
         with tab2:
             st.subheader("Waiting List over Time")
@@ -661,18 +710,40 @@ if button_run_pressed:
 
             )
 
-            st.subheader("Balance between people arriving in the system and departing")
+            st.subheader("Daily WL Snapshots - Alternate method")
 
-            st.write(event_log_df[(event_log_df["event"] == "arrival") |
-                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time'))
+            bq = pd.DataFrame(daily_waiting_for_booking_snapshots["booking_queue_size_day_end"].tolist())
+            bq_filtered = bq.iloc[WARM_UP:RUN_LENGTH,:]
+
+            st.write(bq_filtered)
 
             st.plotly_chart(
                 px.line(
-                    event_log_df[(event_log_df["event"] == "arrival") |
-                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time'),
+                bq_filtered.reset_index(drop=False),
+                x="index",
+                y= 0
+                )
+            )
+
+            st.subheader("Balance between people arriving in the system and departing")
+
+            arrival_depart_df = event_log_df[(event_log_df["event"] == "arrival") |
+                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time')
+
+            arrival_depart_df_pivot = arrival_depart_df.pivot(index="time", columns="event", values="count")
+            arrival_depart_df_pivot["difference (arrival-depart) - positive is more more arriving than departing"] = arrival_depart_df_pivot["arrival"] - arrival_depart_df_pivot["depart"]
+            st.write()
+
+            st.plotly_chart(
+                px.scatter(
+                  arrival_depart_df,
                   x="time",
                   y="count",
-                  color="event"
+                  color="event",
+                  trendline="rolling",
+                  color_discrete_sequence=['#636EFA', '#EF553B'],
+                  opacity=0.2,
+                  trendline_options=dict(window=100)
                 ),
                 use_container_width=True
 
