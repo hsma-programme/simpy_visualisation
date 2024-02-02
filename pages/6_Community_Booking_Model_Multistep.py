@@ -39,6 +39,9 @@ with st.expander("Click here for additional details about this model"):
           - It could be scaled up to look at multiple clinics, including a step where patients are potentially routed to a different clinic depending on availability
           - Different appointment types could take up different numbers of slots (e.g. an assessment appointment could be 1.5 slots while a regular appointment is 1 slot)
           - A preference for weekend vs weekday appointments could be introduced for certain clients
+          - The number of appointments could be set to a fixed amount, or capped at a maximum, model a system where only a fixed number of appointments are offered as standard
+          (e.g. in first-line IAPT pyschological wellbeing services in the UK, only a certain number of appointments are offered at tier two before users are either discharged
+          or escalated to tier three support if clinically appropriate)
         """
     )
 
@@ -77,19 +80,25 @@ with st.expander("Click here to adjust caseload targets"):
             np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER)],
             axis=1
             )
-    caseload_default_adjusted.columns = ["Default Caseload (Total Slots Per Week)", "Adjusted Caseload"]
+    caseload_default_adjusted.columns = ["Default Caseload (Total Slots Per Week)",
+                                         "Adjusted Caseload"]
     st.write(
       caseload_default_adjusted
     )
 
 st.write(f"Total appointment slots available per week: {np.floor(shifts_edited.sum()).sum()}")
-st.write(f"Total caseload slots available after adjustment by multiplier ({CASELOAD_TARGET_MULTIPLIER}): {np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
+st.write(f"Total caseload slots available after adjustment by multiplier ({CASELOAD_TARGET_MULTIPLIER}):" \
+         f"{np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
 
 col_setup_1, col_setup_2 = st.columns(2)
 with col_setup_1:
     annual_demand = st.slider("Select average annual demand", 100, 5000, 700, 10)
 with col_setup_2:
-    prop_high_priority = st.slider("Select proportion of high priority patients (will go to front of booking queue)", 0.0, 0.9, 0.03, 0.01)
+    prop_high_priority = st.slider(
+        "Select proportion of high priority patients (will go to front of booking queue)",
+        0.0, 0.9, 0.03, 0.01
+        )
+
 # prop_carve_out = st.slider("Select proportion of carve-out (slots reserved for high-priority patients)", 0.0, 0.9, 0.0, 0.01)
 # Note - need to check if carve-out still works before reintegrating - it may be that changes to the way appointments are booked means that
 # high-priority patients are no longer able to access them
@@ -144,7 +153,8 @@ if button_run_pressed:
         # Run the model and unpack the outputs
         results_all, results_low, results_high, event_log, \
         bookings, available_slots, daily_caseload_snapshots, \
-          daily_waiting_for_booking_snapshots, daily_arrivals = single_run(args = scenarios['pooled'])
+        daily_waiting_for_booking_snapshots, \
+        daily_arrivals = single_run(args = scenarios['pooled'])
 
         st.subheader("Clinic Simulation")
 
@@ -170,7 +180,9 @@ if button_run_pressed:
         #####################################################
 
         # Create a list of clinics
-        clinics =  [x for x in event_log_df['booked_clinic'].sort_values().unique().tolist() if not math.isnan(x)]
+        clinics =  [x for x
+                    in event_log_df['booked_clinic'].sort_values().unique().tolist()
+                    if not math.isnan(x)]
 
         # Create a column of positions for people waiting for their initial appointment with the clinic
         clinic_waits = [{'event': f'appointment_booked_waiting_{int(clinic)}',
@@ -188,33 +200,41 @@ if button_run_pressed:
           for clinic in clinics]
 
         # Join these dataframes
-        event_position_df = pd.concat([pd.DataFrame(clinic_waits),(pd.DataFrame(clinic_attends))])
+        event_position_df = pd.concat(
+            [pd.DataFrame(clinic_waits),
+             (pd.DataFrame(clinic_attends))
+             ])
 
         # Create a column of positions for people who are put on a waiting list before being given their future
         # appointment
-        wait_for_booking = [{'event': 'waiting_appointment_to_be_scheduled',
+        wait_for_booking = [{
+          'event': 'waiting_appointment_to_be_scheduled',
           'y':  250,
           'x': 225,
-          'label': f"Waiting to be<br>scheduled with <br>clinician "}]
+          'label': "Waiting to be<br>scheduled with <br>clinician "
+          }]
 
         event_position_df = pd.concat([event_position_df,(pd.DataFrame(wait_for_booking))])
 
         # Create a column of positions for people being referred to another service (triaged as inappropriate
         # for this service after their initial referral and before an appointment is booked)
-        referred_out = [{'event': 'referred_out',
+        referred_out = [{
+          'event': 'referred_out',
           'y':  700,
           'x': 225,
-          'label': f"Referred Out:<br>Unsuitable for Service"}]
+          'label': "Referred Out:<br>Unsuitable for Service"
+          }]
 
         event_position_df = pd.concat([event_position_df,(pd.DataFrame(referred_out))])
 
         # Create a column of positions for people who have had their initial appointment and are now waiting for a
         # booked follow-up appointment to take place
-        follow_up_waiting = [{'event': f'follow_up_appointment_booked_waiting_{int(clinic)}',
+        follow_up_waiting = [{
+          'event': f'follow_up_appointment_booked_waiting_{int(clinic)}',
           'y':  950-(clinic+1)*80,
           'x': 1100,
-          'label': f"On books - awaiting <br>next appointment<br>with clinician {int(clinic)}"}
-          for clinic in clinics]
+          'label': f"On books - awaiting <br>next appointment<br>with clinician {int(clinic)}"
+          } for clinic in clinics]
 
         event_position_df = pd.concat([event_position_df,(pd.DataFrame(follow_up_waiting))])
 
@@ -263,7 +283,6 @@ if button_run_pressed:
             override_x_max=1200,
             override_y_max=1000,
             icon_and_text_size=10,
-            # gap_between_resources=15,
             include_play_button=True,
             add_background_image=None,
             display_stage_labels=True,
@@ -312,23 +331,60 @@ if button_run_pressed:
             # Waiting list size over time (is it steady-state or out of control?)
             with col1:
                 st.subheader("Waiting lists over time")
-                st.plotly_chart(
-                px.line(
-                    daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
+
+                st.markdown("""
+                            This looks at the number of people at each point in the system over the simulation's duration.
+                            """)
+                fig_daily_position_counts = px.line(daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
                                           (daily_position_counts["event"] == "appointment_booked_waiting") |
                                           (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")  |
                                           (daily_position_counts["event"] == "have_appointment")],
                   x="day",
                   y="count",
                   color="event"
-                ),
-                use_container_width=True
+                )
+                fig_daily_position_counts.update_layout(legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ))
 
-            )
+                st.plotly_chart(
+                    fig_daily_position_counts,
+                    use_container_width=True
+                )
+
+                st.subheader("Balance between arrivals and departures")
+                arrival_depart_df = event_log_df[(event_log_df["event"] == "arrival") |
+                                      (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time')
+
+                arrival_depart_df_pivot = arrival_depart_df.pivot(index="time", columns="event", values="count")
+                arrival_depart_df_pivot["difference (arrival-depart) - positive is more more arriving than departing"] = arrival_depart_df_pivot["arrival"] - arrival_depart_df_pivot["depart"]
+
+                arrival_depart_balance_fig = px.scatter(
+                      arrival_depart_df,
+                      x="time",
+                      y="count",
+                      color="event",
+                      trendline="rolling",
+                      color_discrete_sequence=['#636EFA', '#EF553B'],
+                      opacity=0.1,
+                      trendline_options=dict(window=100)
+                    )
+
+                st.plotly_chart(arrival_depart_balance_fig, use_container_width=True)
+
 
             # Time from referral to booking
             with col2:
                 st.subheader("Booking Waits")
+
+                st.markdown("""
+                            This looks at the time from arriving in the system to having an appointment booked,
+                            which will only happen when a clinician has a low enough caseload to take on a new patient
+                            """)
 
                 assessment_booking_waits = (event_log_df
                       .dropna(subset='assessment_booking_wait')
@@ -353,6 +409,8 @@ if button_run_pressed:
                           ), use_container_width=True
                 )
 
+                st.subheader("Average Booking Waits by Pathway Over Time")
+
                 st.plotly_chart(
                     px.line(
                       assessment_booking_waits,
@@ -364,6 +422,11 @@ if button_run_pressed:
             col3, col4 = st.columns(2)
             with col3:
                 st.subheader("Assessment Waits")
+                st.markdown("""
+                            This looks at the time from arriving in the system to having an assessment (first appointment).
+                            This is the time from arrival to booking + the time from booking to appointment.
+                            """)
+
                 print(results_high)
                 print(results_low)
 
@@ -383,7 +446,7 @@ if button_run_pressed:
                 y="wait", x="pathway", color="pathway"
                     ), use_container_width=True
                     )
-
+                st.subheader("Average Assessment Waits by Pathway Over Time")
                 st.plotly_chart(
                     px.line(
                       event_log_df
@@ -395,6 +458,13 @@ if button_run_pressed:
             # Distribution of inter-appointment waits (are they in tolerances)
             with col4:
                 st.subheader("Inter-appointment waits")
+                st.markdown("""
+                            This looks at the time between repeat appointments after the assessment appointment
+                            has taken place. Ideally intervals should remain consistent and around the target.
+                            Intervals that are much longer than the target indicate that the system is overloaded
+                            (clinician's appointment books are filling up too much in the short term) -
+                            too many clients are on caseload at once to be sustainable.
+                            """)
 
                 inter_appointment_gaps = (event_log_df
                 .dropna(subset='interval')
@@ -415,6 +485,12 @@ if button_run_pressed:
                           ), use_container_width=True
                 )
 
+                st.markdown("""
+                            This looks at whether the inter-appointment arrival has varied significantly across the simulation's duration.
+                            We would expect to see some constant variation, but large peaks at certain points indicate the system may not have
+                            enough spare capacity to consistently deal with peaks in demand/new arrivals.
+                            """)
+
                 st.plotly_chart(
                     px.line(
                       inter_appointment_gaps,
@@ -426,7 +502,11 @@ if button_run_pressed:
             col5, col6 = st.columns(2)
             with col5:
                 st.subheader("Slot Utilisation - % of Slots Used")
-                st.write("Total % of slots used: {}%".format(
+                st.markdown("""
+                            This looks at the % of slots that clincian's have that end up having a booking.
+                            This does not include data from the warm-up period.
+                            """)
+                st.write("<b>Total % of slots used:</b> {}%".format(
                    round(
                         (((bookings.iloc[WARM_UP:RUN_LENGTH,]).sum().sum() /
                           ((bookings.iloc[WARM_UP:RUN_LENGTH,]) + available_slots.iloc[WARM_UP:RUN_LENGTH,]).sum().sum())
@@ -451,6 +531,13 @@ if button_run_pressed:
             # Caseload sizes over time
             with col6:
                 st.subheader("Daily Arrivals (Including Rejected)")
+                st.markdown("""
+                            This looks at the number of arrivals to the system per day, including those who were rejected
+                            before reaching the assessment booking stage as they were triaged as being inappropriate for
+                            the service. This can be useful to determine if the random seed for this simulation has resulted
+                            in any particular large peaks or troughs in the number of arrivals that may have tested the
+                            resilience of the clinic.
+                            """)
                 # st.write(daily_arrivals)
                 # Want two trendlines on the same fig
                 # Using answer from
@@ -698,53 +785,44 @@ if button_run_pressed:
             st.subheader("Waiting list sizes over time")
             #TODO: Add box indicating warm-up period
             st.plotly_chart(
-                px.line(
-                    daily_position_counts[(daily_position_counts["event"] == "waiting_appointment_to_be_scheduled") |
-                                          (daily_position_counts["event"] == "appointment_booked_waiting") |
-                                          (daily_position_counts["event"] == "follow_up_appointment_booked_waiting")],
-                  x="day",
-                  y="count",
-                  color="event"
-                ),
+                fig_daily_position_counts,
                 use_container_width=True
 
             )
 
-            st.subheader("Daily WL Snapshots - Alternate method")
+            st.subheader("Daily Waiting List Snapshots - Alternate method")
 
             bq = pd.DataFrame(daily_waiting_for_booking_snapshots["booking_queue_size_day_end"].tolist())
             bq_filtered = bq.iloc[WARM_UP:RUN_LENGTH,:]
 
-            st.write(bq_filtered)
-
-            st.plotly_chart(
-                px.line(
+            # st.write(bq_filtered)
+            daily_wl_fig_alternate = px.line(
                 bq_filtered.reset_index(drop=False),
                 x="index",
                 y= 0
                 )
-            )
+
+            col2a, col2b = st.columns([1,3])
+            with col2a:
+                st.write(bq_filtered)
+
+            with col2b:
+                st.plotly_chart(daily_wl_fig_alternate, use_container_width=True)
 
             st.subheader("Balance between people arriving in the system and departing")
 
-            arrival_depart_df = event_log_df[(event_log_df["event"] == "arrival") |
-                                  (event_log_df["event"] == "depart")][["time", "event"]].value_counts().reset_index(drop=False).sort_values('time')
-
-            arrival_depart_df_pivot = arrival_depart_df.pivot(index="time", columns="event", values="count")
-            arrival_depart_df_pivot["difference (arrival-depart) - positive is more more arriving than departing"] = arrival_depart_df_pivot["arrival"] - arrival_depart_df_pivot["depart"]
-            st.write()
+            st.markdown("""
+                This looks at the number of people arriving in the system - including those who are
+                rejected before assessment as being inappropriate for the service - and the number
+                departing at any point in their journey. The coloured lines are the rolling 100 day
+                average. Ideally the two lines should roughly overlap, though some points of minor
+                divergence are to be expected due to the variation in the number of arrivals, the number
+                being rejected, the number leaving after assessment without ongoing treatment, and the
+                number of follow-up appointments required per client.
+                """)
 
             st.plotly_chart(
-                px.scatter(
-                  arrival_depart_df,
-                  x="time",
-                  y="count",
-                  color="event",
-                  trendline="rolling",
-                  color_discrete_sequence=['#636EFA', '#EF553B'],
-                  opacity=0.2,
-                  trendline_options=dict(window=100)
-                ),
+                arrival_depart_balance_fig,
                 use_container_width=True
 
             )
