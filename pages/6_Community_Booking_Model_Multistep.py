@@ -1,24 +1,23 @@
 import gc
 import math
 import random
-
+# Package for webpage development
 import streamlit as st
-
+# Packages for data manipulation
 import numpy as np
 import pandas as pd
-
+# Packages for graphing
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
+# Model functions
 from examples.ex_5_community_follow_up.model_classes import Scenario, generate_seed_vector
 from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
-
+# Animation functions
 from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
-# from st_aggrid import AgGrid
-# from helper_functions import d2
-
+# Flowchart display function
+from helper_functions import mermaid
 
 st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
@@ -26,11 +25,46 @@ st.set_page_config(layout="wide",
 
 gc.collect()
 
-st.title("Mental Health - Appointment Booking Model")
+st.title("Community Service - Repeat Appointment Booking Model with Variable Follow-ups")
 
 st.warning("Note that at present this only runs a single replication of the simulation model. Multiple replications should be run with different random seeds to ensure a good picture of potential variability is created.")
 
+st.markdown(
+  """
+  This model is designed to mimic a simple community-based appointment service where clients have an initial appointment and then a variable number of follow-ups over an extended period of time.
+
+  A client can have their first referral with any clinician - in practice, whoever has capacity and the soonest appointment - but all follow-on appointments will be with the same clinician.
+
+  Instead of using simpy resources, an appointment book is set up. The model looks for an appointment that meets criteria, then books this in, reducing the available slots as appropriate.
+  This allows for continuity of care in a way that is more difficult to achieve with a simpy resource, as well as allowing finer control over the number of appointments a clinician can undertake in a day.
+
+  The process a patient arriving at this clinic will follow is shown below:
+  """
+)
+
+mermaid(height=450, width=1250, code="""
+%%{ init: {  'theme': 'base', 'themeVariables': {'lineColor': '#b4b4b4', background: '#636363'} } }%%
+flowchart LR
+    A[Arrival\nGenerated] -->B((<b>SINK</b>\nDischarged as\ninappropriate for\nservice))
+    A --> B2[Arrival\nAccepted]
+    B2 --> C{Triaged as\nHigh Priority}
+    B2 --> D{Triaged as\nLow Priority}
+    C --> |Go to front of queue\nbut behind other\nhigh priority patients\nwho arrived first| E[In Queue\nfor Booking\n\nWaiting for\nClinician With\nCapacity]
+    D --> |Go to back of queue |E
+    E --> |Caseload slot\nbecomes available\nwhen another client\nleaves caseload| F(Patient at front of queue booked\nin for soonest available\nappointment\n\nIf more than one caseload\nslot opens up, book next\npatients in queue too)
+    F --> |Wait until\nday of\nAssessment\nAppointment|G[Have\nAssessment\nAppointment]
+    G --> H((<b>SINK</b>\nDischarged as\nno follow-ups\nrequired))
+    G --> I{Requires\nHigh Intensity\nFollow-up\n\nWeekly\n1 caseload\nslot}
+    G --> J{Requires\nLow Intensity\nFollow-up\n\nFortnightly\n0.5 caseload\nslots}
+    J --> K
+    I --> K[Attend Follow-up Appointments]
+    K --> K
+    K --> L((<b>SINK</b>\nDepart After\nAll Follow-ups\nComplete))
+      """)
+
+
 with st.expander("Click here for additional details about this model"):
+
     st.markdown(
         """
         There are a range of ways this model could be adapted further:
@@ -38,13 +72,20 @@ with st.expander("Click here for additional details about this model"):
           - The number of priorities or potential ongoing intensities could be altered
           - It could be incorporated into a larger model where different resources - i.e. different sets of appointment books - are involved in different steps
           - It could be scaled up to look at multiple clinics, including a step where patients are potentially routed to a different clinic depending on availability
-          - Different appointment types could take up different numbers of slots (e.g. an assessment appointment could be 1.5 slots while a regular appointment is 1 slot)
+          - Different appointment types could take up different numbers of slots (e.g. an assessment appointment could be 1.5 slots while a regular appointment is 1 slot, or telephone appointments could take up 1 slot while in-person appointmetns take 3)
           - A preference for weekend vs weekday appointments could be introduced for certain clients
+          - The distinction between high and low itensity appointment frequencies could be removed, with all clients being seen at a standard frequency
+          - The interval between appointments could be randomised to some extent
+          - The interval between appointments could be set to increase over time
           - The number of appointments could be set to a fixed amount, or capped at a maximum, model a system where only a fixed number of appointments are offered as standard
           (e.g. in first-line IAPT pyschological wellbeing services in the UK, only a certain number of appointments are offered at tier two before users are either discharged
           or escalated to tier three support if clinically appropriate)
         """
     )
+
+st.divider()
+
+st.subheader("Set up Model Parameters")
 
 shifts = pd.read_csv("examples/ex_5_community_follow_up/data/shifts.csv")
 
@@ -151,15 +192,17 @@ with st.expander("Click here to adjust caseload targets"):
       caseload_default_adjusted
     )
 
+st.divider()
+
 st.write(f"Total appointment slots available per week: {np.floor(shifts_edited.sum()).sum()}")
 st.write(f"Total caseload slots available after adjustment by multiplier ({CASELOAD_TARGET_MULTIPLIER}):" \
          f"{np.floor(shifts_edited.sum() * CASELOAD_TARGET_MULTIPLIER).sum()}")
 
 col_setup_1, col_setup_2 = st.columns(2)
 with col_setup_1:
-    annual_demand = st.slider("Select average annual demand", 100, 5000, 700, 10)
+    ANNUAL_DEMAND= st.slider("Select average annual demand", 100, 5000, 700, 10)
 with col_setup_2:
-    prop_high_priority = st.slider(
+    PROP_HIGH_PRIORITY = st.slider(
         "Select proportion of high priority patients (will go to front of booking queue)",
         0.0, 0.9, 0.03, 0.01
         )
@@ -180,12 +223,80 @@ with col_setup_4:
                                   min_value=100, max_value=365*5,
                                   step=5, value=365*3)
 
+RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
+
 col_setup_5, col_setup_6 = st.columns(2)
 
 with col_setup_5:
+    PROP_REFERRED_OUT = st.slider("Set Proportion of Arrivals Referred Out as Unsuitable", 0.0, 0.99, 0.12, 0.01)
+
+with col_setup_6:
     SEED = st.slider("Set Seed", 0, 1000, 42, 1)
 
-RUN_LENGTH = RESULTS_COLLECTION + WARM_UP
+with st.expander("Set follow-up appointment settings:"):
+    col_setup_8, col_setup_9, col_setup_10, col_setup_11 = st.columns(4)
+
+    with col_setup_8:
+        PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS = st.slider(
+            label = "What proportion of high-priority patients have ongoing appointments after assessment?",
+            min_value=0.0, max_value=1.0,
+            step=0.01, value=0.95)
+        PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS = st.slider(
+            label = "What proportion of low-priority patients have ongoing appointments after assessment?",
+            min_value=0.0, max_value=1.0,
+            step=0.01, value=0.8)
+
+    with col_setup_9:
+        # What proportion of people initially graded as *high*
+        # priority go on to have high intensity therapy?
+        PROP_HIGH_PRIORITY_HIGH_INTENSITY = st.slider(
+                label = "What proportion of people initially graded as *high* priority go on to have high intensity therapy?",
+                min_value=0.0, max_value=1.0,
+                step=0.01, value=0.7)
+        # What proportion of people initially graded as *low*
+        # priority go on to have high intensity therapy?
+        PROP_LOW_PRIORITY_HIGH_INTENSITY = st.slider(
+                label = "What proportion of people initially graded as *low* priority go on to have high intensity therapy?",
+                min_value=0.0, max_value=1.0,
+                step=0.01, value=0.2)
+
+        st.markdown("Note that the remainder of patients in both cases will go on to have low-intensity therapy")
+
+    with col_setup_10:
+        MEAN_FOLLOW_UPS_HIGH_INTENSITY = st.slider(label = "How many follow-ups do high-intensity patients have on average?",
+                                      min_value=1, max_value=50,
+                                      step=5, value=10)
+        MEAN_FOLLOW_UPS_LOW_INTENSITY = st.slider(label = "How many follow-ups do low-intensity patients have on average?",
+                                      min_value=1, max_value=50,
+                                      step=5, value=6)
+
+
+    with col_setup_11:
+        SD_FOLLOW_UPS_HIGH_INTENSITY = st.slider(label = "How many follow-ups do high-intensity patients have on average?",
+                                      min_value=1, max_value=50,
+                                      step=5, value=18)
+        st.caption(f"95% of high intensity patients have between {MEAN_FOLLOW_UPS_HIGH_INTENSITY-SD_FOLLOW_UPS_HIGH_INTENSITY if (MEAN_FOLLOW_UPS_HIGH_INTENSITY-SD_FOLLOW_UPS_HIGH_INTENSITY) >= 0 else 0} and {MEAN_FOLLOW_UPS_HIGH_INTENSITY+SD_FOLLOW_UPS_HIGH_INTENSITY} follow-up appointments")
+        SD_FOLLOW_UPS_HIGH_INTENSITY = SD_FOLLOW_UPS_HIGH_INTENSITY/3
+        SD_FOLLOW_UPS_LOW_INTENSITY = st.slider(label = "How much do the number of appointments for low intensity patients tend to vary by?",
+                                      min_value=1, max_value=50,
+                                      step=5, value=9)
+        st.caption(f"95% of high intensity patients have between {MEAN_FOLLOW_UPS_LOW_INTENSITY-SD_FOLLOW_UPS_LOW_INTENSITY if (MEAN_FOLLOW_UPS_LOW_INTENSITY-SD_FOLLOW_UPS_LOW_INTENSITY) >= 0 else 0} and {MEAN_FOLLOW_UPS_LOW_INTENSITY+SD_FOLLOW_UPS_LOW_INTENSITY} follow-up appointments")
+        SD_FOLLOW_UPS_LOW_INTENSITY = SD_FOLLOW_UPS_LOW_INTENSITY/3
+
+# These calculations don't appear to be quite right, or don't appear to be that useful at the moment. Need to further consider how it interacts with the 'caseload'.
+# slots_required_calc =  \
+#   # High priority patients who go on to have high intensity follow-ups
+#   ((ANNUAL_DEMAND * (1-PROP_REFERRED_OUT)) * (PROP_HIGH_PRIORITY * PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS * PROP_HIGH_PRIORITY_HIGH_INTENSITY) * MEAN_FOLLOW_UPS_HIGH_INTENSITY) + \
+#   # High priority patients who go on to have low intensity follow-ups
+#   ((ANNUAL_DEMAND * (1-PROP_REFERRED_OUT)) * (PROP_HIGH_PRIORITY * PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS * (1-PROP_HIGH_PRIORITY_HIGH_INTENSITY)) * MEAN_FOLLOW_UPS_LOW_INTENSITY) + \
+#   # Low priority patients who go on to have high intensity follow-ups
+#   ((ANNUAL_DEMAND * (1-PROP_REFERRED_OUT)) * ((1-PROP_HIGH_PRIORITY) * PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS * PROP_LOW_PRIORITY_HIGH_INTENSITY) * MEAN_FOLLOW_UPS_HIGH_INTENSITY) + \
+#   # Low priority patients who go on to have low intensity follow-ups
+#   ((ANNUAL_DEMAND * (1-PROP_REFERRED_OUT)) * ((1-PROP_HIGH_PRIORITY) * PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS * (1-PROP_HIGH_PRIORITY_HIGH_INTENSITY)) * MEAN_FOLLOW_UPS_LOW_INTENSITY)
+
+# st.markdown(
+#     f"Approximately {round(slots_required_calc,0):.0f} slots required to meet an annual demand of {ANNUAL_DEMAND} with currently set parameters. {(shifts_edited.sum().sum())*52} appointments are available per year."
+# )
 
 button_run_pressed = st.button("Run simulation")
 
@@ -210,10 +321,19 @@ if button_run_pressed:
                                        slots_file=shifts_edited,
                                        pooling_file=pooling,
                                        existing_caseload_file=caseload,
-                                       caseload_multiplier=CASELOAD_TARGET_MULTIPLIER,
-                                       prop_high_priority=prop_high_priority,
                                        demand_file=referrals,
-                                       annual_demand=annual_demand)
+                                       caseload_multiplier=CASELOAD_TARGET_MULTIPLIER,
+                                       prop_high_priority=PROP_HIGH_PRIORITY,
+                                       prop_high_priority_ongoing_appointments=PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS,
+                                       prop_low_priority_ongoing_appointments=PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS,
+                                       prop_high_priority_assessed_high_intensity=PROP_HIGH_PRIORITY_HIGH_INTENSITY,
+                                       prop_low_priority_assessed_high_intensity=PROP_LOW_PRIORITY_HIGH_INTENSITY,
+                                       mean_follow_ups_high_intensity=MEAN_FOLLOW_UPS_HIGH_INTENSITY,
+                                       sd_follow_ups_high_intensity=SD_FOLLOW_UPS_HIGH_INTENSITY,
+                                       mean_follow_ups_low_intensity=MEAN_FOLLOW_UPS_LOW_INTENSITY,
+                                       sd_follow_ups_low_intensity=SD_FOLLOW_UPS_LOW_INTENSITY,
+                                       annual_demand=ANNUAL_DEMAND,
+                                       prop_referred_out=PROP_REFERRED_OUT)
 
         # Run the model and unpack the outputs
         results_all, results_low, results_high, event_log, \

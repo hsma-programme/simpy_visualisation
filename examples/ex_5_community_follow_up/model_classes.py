@@ -60,7 +60,7 @@ ANNUAL_DEMAND = 1500
 LOW_PRIORITY_MIN_WAIT = 7
 HIGH_PRIORITY_MIN_WAIT = 2
 
-PROP_HIGH_PRORITY= 0.15
+PROP_HIGH_PRIORITY= 0.15
 PROP_CARVE_OUT = 0.15
 
 # What proportion of people initially graded as *high* priority
@@ -79,7 +79,9 @@ PROP_HIGH_PRIORITY_HIGH_INTENSITY = 0.7
 PROP_LOW_PRIORITY_HIGH_INTENSITY = 0.2
 
 MEAN_FOLLOW_UPS_HIGH_INTENSITY = 10
+SD_FOLLOW_UPS_HIGH_INTENSITY = 6
 MEAN_FOLLOW_UPS_LOW_INTENSITY = 6
+SD_FOLLOW_UPS_LOW_INTENSITY = 3
 
 LOW_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 14
 HIGH_INTENSITY_FOLLOW_UP_TARGET_INTERVAL = 7
@@ -112,8 +114,17 @@ class Scenario():
                  pooling_file=None,
                  existing_caseload_file=None,
                  annual_demand=ANNUAL_DEMAND,
-                 prop_high_priority=PROP_HIGH_PRORITY,
+                 prop_high_priority=PROP_HIGH_PRIORITY,
+                 prop_high_priority_ongoing_appointments=PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS,
+                 prop_low_priority_ongoing_appointments=PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS,
+                 prop_high_priority_assessed_high_intensity=PROP_HIGH_PRIORITY_HIGH_INTENSITY,
+                 prop_low_priority_assessed_high_intensity=PROP_LOW_PRIORITY_HIGH_INTENSITY,
+                 mean_follow_ups_high_intensity=MEAN_FOLLOW_UPS_HIGH_INTENSITY,
+                 sd_follow_ups_high_intensity=SD_FOLLOW_UPS_HIGH_INTENSITY,
+                 mean_follow_ups_low_intensity=MEAN_FOLLOW_UPS_LOW_INTENSITY,
+                 sd_follow_ups_low_intensity=SD_FOLLOW_UPS_LOW_INTENSITY,
                  caseload_multiplier=1,
+                 prop_referred_out=0.12,
                  seeds=None):
 
         if seeds is None:
@@ -154,6 +165,8 @@ class Scenario():
         #proportion of carve out used
         self.prop_carve_out = prop_carve_out
 
+        self.prop_referred_out = prop_referred_out
+
         #input data from files
         self.clinic_demand = demand_file
         self.weekly_slots = slots_file
@@ -184,34 +197,34 @@ class Scenario():
 
         # Determining whether people will have follow-up appointments
         self.follow_up_dist_high_priority = Bernoulli(
-            PROP_HIGH_PRIORITY_ONGOING_APPOINTMENTS,
+            prop_high_priority_ongoing_appointments,
             random_seed=self.seeds[2]
             )
         self.follow_up_dist_low_priority = Bernoulli(
-            PROP_LOW_PRIORITY_ONGOING_APPOINTMENTS,
+            prop_low_priority_ongoing_appointments,
             random_seed=self.seeds[3]
             )
 
         # Setting intensity (frequency) of follow-up appointments
         self.intensity_dist_high_priority = Bernoulli(
-            PROP_HIGH_PRIORITY_HIGH_INTENSITY,
+            prop_high_priority_assessed_high_intensity,
             random_seed=self.seeds[4]
             )
         self.intensity_dist_low_priority = Bernoulli(
-            PROP_LOW_PRIORITY_HIGH_INTENSITY,
+            prop_low_priority_assessed_high_intensity,
             random_seed=self.seeds[5]
             )
 
         # Setting number of follow up appointments - high intensity
         self.num_follow_up_dist_high_intensity = Lognormal(
-            mean=MEAN_FOLLOW_UPS_HIGH_INTENSITY,
-            stdev=6,
+            mean=mean_follow_ups_high_intensity,
+            stdev=sd_follow_ups_high_intensity,
             random_seed=self.seeds[6]
             )
 
         self.num_follow_up_dist_low_intensity = Lognormal(
-            mean=MEAN_FOLLOW_UPS_LOW_INTENSITY,
-            stdev=3,
+            mean=mean_follow_ups_low_intensity,
+            stdev=sd_follow_ups_low_intensity,
             random_seed=self.seeds[7]
             )
 
@@ -224,7 +237,7 @@ class Scenario():
         #create a list of clinic objects
         self.clinics = []
         for i in range(len(self.clinic_demand)):
-            clinic = Clinic(self.clinic_demand['referred_out'].iloc[i],
+            clinic = Clinic(self.prop_referred_out,
                             random_seed=self.seeds[i+9])
             self.clinics.append(clinic)
 
