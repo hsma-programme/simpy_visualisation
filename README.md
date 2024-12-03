@@ -2,9 +2,9 @@
 
 Note that at present this repository contains a file with functions that can be used to generate animated outputs from discrete event simulation (DES) models in Python, and a series of examples discrete event simulation models with the appropriate logging added to allow visualisation. There is then a Streamlit app demonstrating the animations. 
 
-You can now install the [vidigi]() package to access the relevant animation functions.
+You can now install the [vidigi](https://pypi.org/project/vidigi/) package to access the relevant animation functions.
 
-More details about vidigi can be found [in its repository](). 
+More details about vidigi can be found [in its repository](https://github.com/bergam0t/vidigi). 
 
 This package is still in its early stages; the simpy_visualisation repository (i.e. the repository you are currently viewing) has not yet been updated to reflect the existence of vidigi.
 
