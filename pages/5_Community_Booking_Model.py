@@ -9,7 +9,8 @@ import plotly.graph_objects as go
 from examples.ex_4_community.model_classes import Scenario, generate_seed_vector
 from examples.ex_4_community.simulation_execution_functions import single_run
 from examples.ex_4_community.simulation_summary_functions import results_summary
-from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
+from vidigi.prep import reshape_for_animations, generate_animation_df
+from vidigi.animation import generate_animation
 # from plotly.subplots import make_subplots
 
 st.set_page_config(layout="wide",
@@ -19,6 +20,21 @@ st.set_page_config(layout="wide",
 gc.collect()
 
 st.title("Mental Health - Appointment Booking Model")
+
+st.markdown(
+    """
+This model looks at a simple mental health pathway.
+
+In this model, we are only concerned with the booking of an initial appointment.
+
+By default, the model uses an appointment book with some slots held back for high-priority patients.
+Each patient in the default scenario can only go to their 'home'/most local clinic.
+
+However, it is possible to switch to other scenarios
+- a 'pooling' system where patients can choose between one of several linked clinics in their local area (with the assumption that they will choose the clinic of the group with the soonest available appointment)
+- the pooling system described above, but with no slots held back for high-priority patients (i.e. no 'carve-out')
+    """
+)
 
 # args = Scenario()
 

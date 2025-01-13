@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 from examples.ex_1_simplest_case.simulation_execution_functions import single_run, multiple_replications
 from examples.ex_1_simplest_case.model_classes import Scenario, TreatmentCentreModelSimpleNurseStepOnly
-from output_animation_functions import animate_activity_log
+from vidigi.animation import animate_activity_log
 import gc
 
-st.set_page_config(layout="wide", 
+st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
                    page_title="Forced Overcrowding - Simple ED")
 
@@ -19,6 +19,12 @@ This shows the functionality of changing the maximum number of patients who will
 This is important for preventing the animation from becoming too large and unwieldy in situations with large bottlenecks,
 where the position of very large numbers of patients will end up being tracked at every point.
 
+In this example, we end up with a queue of over 2000 entities being managed by vidigi.
+    """
+)
+
+st.warning(
+    """
 Despite these adjustments, this simulation takes quite a long time to run - it may take 1 to 1.5 minutes to load after clicking the button.
     """
 )
@@ -30,7 +36,7 @@ if button_run_pressed:
     # add a spinner and then display success box
     with st.spinner('Simulating the minor injuries unit...'):
 
-        args = Scenario(manual_arrival_rate=2,
+        args = Scenario(manual_arrival_rate=3,
                         n_cubicles_1=5)
 
         model = TreatmentCentreModelSimpleNurseStepOnly(args)
@@ -54,7 +60,7 @@ if button_run_pressed:
         # st.dataframe(detailed_results)
 
         # animation_df = reshape_for_animations(
-        #     event_log=detailed_results[detailed_results['rep']==1], 
+        #     event_log=detailed_results[detailed_results['rep']==1],
         #     every_x_time_units=10,
         #     limit_duration=10*60*24,
         #     step_snapshot_max=50
@@ -67,13 +73,13 @@ if button_run_pressed:
 
         event_position_df = pd.DataFrame([
                     {'event': 'arrival', 'x':  50, 'y': 300, 'label': "Arrival" },
-                    
-                    # Triage - minor and trauma                
-                    {'event': 'treatment_wait_begins', 'x':  205, 'y': 170, 'label': "Waiting for Treatment"  },
-                    {'event': 'treatment_begins', 'x':  205, 'y': 110, 'resource':'n_cubicles_1', 'label': "Being Treated" },
+
+                    # Triage - minor and trauma
+                    {'event': 'treatment_wait_begins', 'x':  205, 'y': 270, 'label': "Waiting for Treatment"  },
+                    {'event': 'treatment_begins', 'x':  205, 'y': 170, 'resource':'n_cubicles_1', 'label': "Being Treated" },
 
                     {'event': 'exit', 'x':  270, 'y': 70, 'label': "Exit"}
-                
+
                 ])
 
 
@@ -87,7 +93,7 @@ if button_run_pressed:
                 include_play_button=True,
                 icon_and_text_size=20,
                 gap_between_entities=6,
-                gap_between_rows=15,
+                gap_between_rows=25,
                 plotly_height=700,
                 plotly_width=1200,
                 override_x_max=300,

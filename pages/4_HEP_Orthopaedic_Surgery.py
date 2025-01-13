@@ -7,10 +7,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from examples.ex_3_theatres_beds.simulation_execution_functions import multiple_replications
 from examples.ex_3_theatres_beds.model_classes import Scenario, Schedule
-from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation, animate_activity_log
+from vidigi.prep import reshape_for_animations, generate_animation_df
+from vidigi.animation import generate_animation
 from plotly.subplots import make_subplots
 
-st.set_page_config(layout="wide", 
+st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
                    page_title="Orthopaedic Ward - HEP")
 
@@ -20,7 +21,7 @@ st.title("Orthopaedic Ward - Hospital Efficiency Project")
 
 st.markdown(
     """
-This is the orthopaedic surgery model developed as part of the hospital efficiency project. 
+This is the orthopaedic surgery model developed as part of the hospital efficiency project.
 """
 )
 st.caption(
@@ -34,13 +35,13 @@ license = {MIT},
 title = {{Hospital Efficiency Project  Orthopaedic Planning Model Discrete-Event Simulation}},
 
 url = {https://github.com/AliHarp/HEP}
-} 
+}
 """)
 
 st.markdown(
     """
 It has been used as a test case here to allow the development and testing of several key features of the event log animations:
-    
+
 - adding of logging to a model from scratch
 
 - ensuring the requirement to use simpy stores instead of simpy resources doesn't prevent the uses of certain common modelling patterns (in this case, conditional logic where patients will leave the system if a bed is not available within a specified period of time)
@@ -89,17 +90,17 @@ with col_b:
         .rename(columns={0: "Sessions"}).merge(
 
         pd.DataFrame.from_dict(schedule.theatres_per_weekday, orient="index")
-            .rename(columns={0: "Theatre Capacity"}), 
+            .rename(columns={0: "Theatre Capacity"}),
             left_index=True, right_index=True
 
         ).merge(
 
-        pd.DataFrame.from_dict(schedule.allocation, orient="index"), 
+        pd.DataFrame.from_dict(schedule.allocation, orient="index"),
         left_index=True, right_index=True
 
         )
         )
-    
+
 
 st.divider()
 
@@ -107,7 +108,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown('# Model Parameters')
-		
+
     st.markdown('## Ring-fenced beds:')
     n_beds = st.slider('Beds', 10, 80, 40, 1)
 
@@ -126,10 +127,10 @@ with col2:
     st.markdown('## Mean length of delayed discharge:')
     los_delay = st.slider('Mean length of delay', 2.0, 10.0,16.5, 0.1)
     los_delay_sd = st.slider('Variation of delay (standard deviation)', 1.0, 25.0,15.2, 0.1)
-		
+
     st.markdown('## Proportion of patients with a discharge delay:')
     prop_delay = st.slider('Proportion delayed', 0.00, 1.00, 0.076, 0.01)
-		
+
     st.markdown('## :green[Model execution]')
     replications = st.slider(':green[Number of runs]', 1, 50, 30)
     runtime = st.slider(':green[Runtime (days)]', 30, 100, 60)
@@ -157,13 +158,13 @@ if button_run_pressed:
                     n_reps=replications,
                     results_collection=runtime
                 )
-    
+
     st.subheader("Summary of Results")
     st.dataframe(results[0])
 
-    
+
     # Join the event log with a list of patients to add a column that will determine
-    # the icon set used for a patient (in this case, we want to distinguish between the 
+    # the icon set used for a patient (in this case, we want to distinguish between the
     # knee/hip patients)
     event_log = results[4]
     event_log = event_log[event_log['rep'] == 1]
@@ -179,56 +180,57 @@ if button_run_pressed:
     revision_patients['patient class'] = revision_patients['patient class'].str.title()
     revision_patients['ID'] = revision_patients['ID'].astype('str') + revision_patients['patient class']
 
-    full_log_with_patient_details = event_log.merge(pd.concat([primary_patients, revision_patients]), 
+    full_log_with_patient_details = event_log.merge(pd.concat([primary_patients, revision_patients]),
                                                      how="left",
                                                     left_on=["patient", "pathway"],
                                                     right_on=["ID", "patient class"]).reset_index(drop=True).drop(columns="ID")
-    
+
     pid_table = full_log_with_patient_details[['patient']].drop_duplicates().reset_index(drop=True).reset_index(drop=False).rename(columns={'index': 'pid'})
 
     full_log_with_patient_details = full_log_with_patient_details.merge(pid_table, how='left', on='patient').drop(columns='patient').rename(columns={'pid':'patient'})
-    
+
     event_position_df = pd.DataFrame([
                 # {'event': 'arrival', 'x':  10, 'y': 250, 'label': "Arrival" },
-                
-                # Triage - minor and trauma                
-                {'event': 'enter_queue_for_bed', 
-                 'x':  200, 'y': 450, 'label': "Waiting for<br>Availability of<br>Bed to be Confirmed<br>Before Surgery" },
 
-                {'event': 'no_bed_available', 
-                 'x':  600, 'y': 450, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
+                # Triage - minor and trauma
+                {'event': 'enter_queue_for_bed',
+                 'x':  200, 'y': 650, 'label': "Waiting for<br>Availability of<br>Bed to be Confirmed<br>Before Surgery" },
 
-                {'event': 'post_surgery_stay_begins', 
-                 'x':  650, 'y': 230, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
+                {'event': 'no_bed_available',
+                 'x':  600, 'y': 650, 'label': "No Bed<br>Available:<br>Surgery Cancelled" },
 
-                {'event': 'discharged_after_stay', 
+                {'event': 'post_surgery_stay_begins',
+                 'x':  650, 'y': 220, 'resource':'n_beds', 'label': "In Bed:<br>Recovering from<br>Surgery" },
+
+                {'event': 'discharged_after_stay',
                  'x':  670, 'y': 50, 'label': "Discharged from Hospital<br>After Recovery"}
-                # {'event': 'exit', 
+                # {'event': 'exit',
                 #  'x':  670, 'y': 100, 'label': "Exit"}
 
                 ])
-    
-    full_patient_df = reshape_for_animations(full_log_with_patient_details, 
+
+    full_patient_df = reshape_for_animations(full_log_with_patient_details,
                                              every_x_time_units=1,
                                              limit_duration=runtime,
                                              step_snapshot_max=50,
                                              debug_mode=debug_mode
                                              )
-    
+
     if debug_mode:
         print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
-    
+
     full_patient_df_plus_pos = generate_animation_df(
                                 full_patient_df=full_patient_df,
                                 event_position_df=event_position_df,
                                 wrap_queues_at=20,
+                                wrap_resources_at=40,
                                 step_snapshot_max=50,
                                 gap_between_entities=15,
                                 gap_between_resources=15,
-                                gap_between_rows=50,
+                                gap_between_rows=175,
                                 debug_mode=debug_mode
                         )
-    
+
     def set_icon(row):
         if row["surgery type"] == "p_knee":
             return "🦵<br>1️⃣<br> "
@@ -249,15 +251,15 @@ if button_run_pressed:
     # step. e.g. 194Primary is discharged on 28th July showing a LOS of 1 but prior to this shows a LOS of 9.
     def add_los_to_icon(row):
         if row["event"] == "post_surgery_stay_begins":
-            return f'{row["icon"]}<br>{row["minute"]-row["time"]:.0f}' 
+            return f'{row["icon"]}<br>{row["minute"]-row["time"]:.0f}'
         elif row["event"] == "discharged_after_stay":
-            return f'{row["icon"]}<br>{row["los"]:.0f}' 
+            return f'{row["icon"]}<br>{row["los"]:.0f}'
         else:
-            return row["icon"] 
-        
+            return row["icon"]
+
     full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(add_los_to_icon, axis=1))
 
-    
+
     def indicate_delay_via_icon(row):
         if row["delayed discharge"] is True:
             return f'{row["icon"]}<br>*'
@@ -285,25 +287,25 @@ if button_run_pressed:
 
     st.markdown(
         """
-        **Key**: 
-        
+        **Key**:
+
         🦵1️⃣: Primary Knee
-        
+
         🦵♻️: Revision Knee
-        
+
         🕺1️⃣: Primary Hip
-        
+
         🕺♻️: Revision Hip
-        
+
         🦵✳️: Primary Unicompartment Knee
-        
+
         An asterisk (*) indicates that the patient has a delayed discharge from the ward.
 
         The numbers below patients indicate their length of stay.
 
         Note that the "No Bed Available: Surgery Cancelled" and "Discharged from Hospital after Recovery" stages in the animation are lagged by one day.
-        For example, on the 2nd of July, this will show the patients who had their surgery cancelled on 1st July or were discharged on 1st July. 
-        These steps are included to make it easier to understand the destinations of different clients, but due to the size of the simulation step shown (1 day) it is difficult to demonstrate this differently. 
+        For example, on the 2nd of July, this will show the patients who had their surgery cancelled on 1st July or were discharged on 1st July.
+        These steps are included to make it easier to understand the destinations of different clients, but due to the size of the simulation step shown (1 day) it is difficult to demonstrate this differently.
         """
     )
 
@@ -311,11 +313,13 @@ if button_run_pressed:
             full_patient_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=args,
-            plotly_height=750,
+            plotly_height=950,
             plotly_width=1000,
             override_x_max=800,
-            override_y_max=500,
+            override_y_max=1000,
             icon_and_text_size=14,
+            wrap_resources_at=40,
+            gap_between_rows=175,
             gap_between_resources=15,
             include_play_button=True,
             add_background_image=None,
@@ -332,7 +336,7 @@ if button_run_pressed:
             frame_transition_duration=1000, #milliseconds
             debug_mode=False
         )
-    
+
     counts_not_avail = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='no_bed_available'][['minute','patient']].groupby('minute').agg('count')
     counts_not_avail = counts_not_avail.reset_index().merge(full_patient_df_plus_pos[['minute']].drop_duplicates(), how='right').sort_values('minute')
     counts_not_avail['patient'] = counts_not_avail['patient'].fillna(0)
@@ -345,7 +349,7 @@ if button_run_pressed:
 
     counts_not_avail = counts_not_avail.merge(counts_ops_completed.rename(columns={'running_total':'completed'}), how="left", on="minute")
     counts_not_avail['perc_slots_lost'] = counts_not_avail['running_total'] / (counts_not_avail['running_total'] + counts_not_avail['completed'])
-   
+
     #####################################################
     # Adding additional animation traces
     #####################################################
@@ -356,11 +360,11 @@ if button_run_pressed:
     # outside of the frames argument else they will not show up at all (or show up intermittently)
     # https://stackoverflow.com/questions/69867334/multiple-traces-per-animation-frame-in-plotly
     # https://stackoverflow.com/questions/69367344/plotly-animating-a-variable-number-of-traces-in-each-frame-in-r
-    # TODO: More explanation and investigation needed of why sometimes traces do and don't show up after being added in 
+    # TODO: More explanation and investigation needed of why sometimes traces do and don't show up after being added in
     # via this method. Behaviour seems very inconsistent and not always logical (e.g. order you put traces in to the later
-    # loop sometimes seems to make a difference but sometimes doesn't; making initial trace transparent sometimes seems to 
+    # loop sometimes seems to make a difference but sometimes doesn't; making initial trace transparent sometimes seems to
     # stop it showing up when added in the frames but not always; sometimes the initial trace doesn't disappear).
-    
+
     # Add bed trace in manually to ensure it can be referenced later
     fig.add_trace(go.Scatter(x=[100], y=[100]))
 
@@ -369,7 +373,7 @@ if button_run_pressed:
     # Add animated text trace that gives running total of operations completed
     fig.add_trace(go.Scatter(
                     x=[100],
-                    y=[50],
+                    y=[30],
                     text=f"Operations Completed: {int(counts_ops_completed['running_total'][0])}",
                     mode='text',
                     textfont=dict(size=20),
@@ -380,7 +384,7 @@ if button_run_pressed:
     # Add animated trace giving running total of slots lost and percentage of total slots this represents
     fig.add_trace(go.Scatter(
         x=[600],
-        y=[600],
+        y=[850],
         text="",
         # text=f"Total slots lost: {int(counts_not_avail['running_total'][0])}<br>({counts_not_avail['perc_slots_lost'][0]:.1%})",
         mode='text',
@@ -388,7 +392,7 @@ if button_run_pressed:
         # opacity=0,
         showlegend=False,
     ))
-    
+
     # Add trace for the event labels (as these get lost from the animation once we start trying to add other things in,
     # so need manually re-adding)
     fig.add_trace(go.Scatter(
@@ -400,10 +404,10 @@ if button_run_pressed:
             textposition="middle right",
             hoverinfo='none'
         ))
-    
+
     # Ensure these all have the right text size
     fig.update_traces(textfont_size=14)
-    
+
     # Now set up the desired subplot layout
     sp = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15], subplot_titles=("", "Daily lost slots"))
 
@@ -439,29 +443,29 @@ if button_run_pressed:
     ##########################################################
     # To work correctly, these need to be provided in the same order as the traces above
     for i, frame in enumerate(fig.frames):
-        frame.data =  (frame.data + 
+        frame.data =  (frame.data +
         # bed icons
-        (fig.data[1],) + 
+        (fig.data[1],) +
         # Slots used/operations occurred
          (
             go.Scatter(
                 x=[100],
-                y=[50],
+                y=[30],
                 text=f"Operations Completed: {int(counts_ops_completed['running_total'][i])}",
                 mode='text',
                 textfont=dict(size=20),
                 showlegend=False,
-            ),) 
-             + 
+            ),)
+             +
          # Slots lost
         (go.Scatter(
                 x=[600],
-                y=[600],
+                y=[800],
                 text=f"Total slots lost: {int(counts_not_avail['running_total'][i])}<br>({counts_not_avail['perc_slots_lost'][i]:.1%})",
                 mode='text',
                 textfont=dict(size=20),
                 showlegend=False,
-            ),) + 
+            ),) +
         # Position labels
         (go.Scatter(
             x=[pos+10 for pos in event_position_df['x'].to_list()],
@@ -471,7 +475,7 @@ if button_run_pressed:
             text=event_position_df['label'].to_list(),
             textposition="middle right",
             hoverinfo='none'
-        ),) + 
+        ),) +
         # Line subplot
         (go.Scatter(
             x=counts_not_avail['minute'][0: i+1].values,
@@ -484,8 +488,8 @@ if button_run_pressed:
             # line=dict(color="#f71707"),
             xaxis='x2',
             yaxis='y2'
-        ),) 
-        #  + 
+        ),)
+        #  +
         #  (
         #     go.Scatter(
         #         x=counts_ops_completed,
@@ -495,11 +499,11 @@ if button_run_pressed:
         #         textfont=dict(size=20),
         #         showlegend=False,
         #     ),
-        #     ) 
-        ) 
+        #     )
+        )
         #+ ((fig.data[-1]), ) + ((fig.data[-2]), )
 
-    # Ensure we tell it which traces we are animating 
+    # Ensure we tell it which traces we are animating
     # (as per https://chart-studio.plotly.com/~empet/15243/animating-traces-in-subplotsbr/#/)
     for i, frame in enumerate(fig.frames):
         # This will ensure it matches the number of traces we have
@@ -508,7 +512,7 @@ if button_run_pressed:
     # for frame in fig.frames:
     #     fig._set_trace_grid_position(frame.data[-1], 2,1)
 
-    # Finally, match these new traces with the text size used elsewhere 
+    # Finally, match these new traces with the text size used elsewhere
     fig.update_traces(textfont_size=14)
 
     # sp_test = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
@@ -527,18 +531,18 @@ if button_run_pressed:
 
     # fig
 
-    
+
 
     # fig.frames[0]
 
-    
 
-    
+
+
     st.plotly_chart(
-        fig    
+        fig
     )
 
-    
+
 
 
     # sp.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]),
@@ -571,8 +575,8 @@ if button_run_pressed:
     #             # add_background_image="https://raw.githubusercontent.com/hsma-programme/Teaching_DES_Concepts_Streamlit/main/resources/Full%20Model%20Background%20Image%20-%20Horizontal%20Layout.drawio.png",
     #         ), use_container_width=False,
     #             config = {'displayModeBar': False}
-    #     )                                               
+    #     )
 
-    
+
 
 # fig.b

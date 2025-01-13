@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import gc
 
-st.set_page_config(layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(layout="wide", initial_sidebar_state="expanded", page_title="SimPy Visualisation Library")
 
 gc.collect()
 
@@ -10,24 +10,15 @@ st.title("Visual Interactive Simulation (VIS) - Demonstration")
 
 st.markdown(
     """
-This streamlit app demonstrates the use of a visual interactive simulation (VIS) package for showing the position of queues and resource utilisation in a manner understandable to stakeholders.
+This streamlit app demonstrates the use of [**vidigi**](https://github.com/Bergam0t/vidigi), a visual interactive simulation (VIS) package for showing the position of queues and resource utilisation in a manner understandable to stakeholders.
 
 It is also valuable for developers, as the functioning of the simulation can be more easily monitored.
 
-It is designed for integration with simpy - however, in theory, it could be integrated with different simulation packages in Python or other languages.
+It is designed for integration with simpy - however, in theory, it could be integrated with different simulation packages in Python or other languages, and you can find an example of its use with the *ciw** simulation package in the *vidigi* documentation.
 
 Please use the tabs on the left hand side to view different examples of how this package can be used.
     """
 )
-# st.divider()
-
-# st.subheader("Technical Notes")
-
-# st.markdown(
-#     """
-# This
-#     """
-# )
 
 st.divider()
 
@@ -37,7 +28,7 @@ st.markdown(
     """
 The underlying code for the emergency department model:
 Monks.T, Harper.A, Anagnoustou. A, Allen.M, Taylor.S. (2022) Open Science for Computer Simulation
-https://github.com/TomMonks/treatment-centre-sim    
+https://github.com/TomMonks/treatment-centre-sim
 """)
 
 with st.expander("Licence: Treatment Centre Model"):
@@ -74,9 +65,9 @@ The layout code for the emergency department model:
 
 
 The hospital efficiency project model:
-Harper, A., & Monks, T. Hospital Efficiency Project Orthopaedic Planning Model Discrete-Event Simulation [Computer software]. 
+Harper, A., & Monks, T. Hospital Efficiency Project Orthopaedic Planning Model Discrete-Event Simulation [Computer software].
 https://doi.org/10.5281/zenodo.7951080
-https://github.com/AliHarp/HEP/tree/main 
+https://github.com/AliHarp/HEP/tree/main
     """
 )
 

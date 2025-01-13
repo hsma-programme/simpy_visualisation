@@ -15,7 +15,8 @@ from examples.ex_5_community_follow_up.model_classes import Scenario, generate_s
 from examples.ex_5_community_follow_up.simulation_execution_functions import single_run
 from examples.ex_5_community_follow_up.simulation_summary_functions import results_summary
 # Animation functions
-from output_animation_functions import reshape_for_animations, generate_animation_df, generate_animation
+from vidigi.prep import reshape_for_animations, generate_animation_df
+from vidigi.animation import generate_animation
 # Flowchart display function
 from helper_functions import mermaid
 
@@ -26,8 +27,6 @@ st.set_page_config(layout="wide",
 gc.collect()
 
 st.title("Community Service - Repeat Appointment Booking Model with Variable Follow-ups")
-
-st.warning("Note that at present this only runs a single replication of the simulation model. Multiple replications should be run with different random seeds to ensure a good picture of potential variability is created.")
 
 st.markdown(
   """
@@ -82,6 +81,10 @@ with st.expander("Click here for additional details about this model"):
           or escalated to tier three support if clinically appropriate)
         """
     )
+
+st.warning("Note that at present this only runs a single replication of the simulation model. Multiple replications should be run with different random seeds to ensure a good picture of potential variability is created.")
+
+st.error("Note that some issues seem to be present with the caseload calculations, leading to some unexpected behaviour within the model over time.")
 
 st.divider()
 
