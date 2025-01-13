@@ -1,12 +1,13 @@
 ***WORK IN PROGRESS***
 
-Note that at present this repository contains a series of examples discrete event simulation models with the appropriate logging added to allow visualisation. There is then a Streamlit app demonstrating the animations.
+This repository contains a series of examples discrete event simulation models with the appropriate logging added to allow visualisation.
+
+There is then a Streamlit app at [https://simpy-visualisation.streamlit.app/](https://simpy-visualisation.streamlit.app/) demonstrating the animations.
 
 You can now install the [vidigi](https://pypi.org/project/vidigi/) package to access the relevant animation functions yourself.
 
-More details about vidigi can be found [in its repository](https://github.com/bergam0t/vidigi).
+More details about vidigi can be found [in its repository](https://github.com/bergam0t/vidigi) or in [its documentation](https://bergam0t.github.io/vidigi/vidigi_docs/).
 
----
 ---
 
 # Introduction
