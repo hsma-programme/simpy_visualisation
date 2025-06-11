@@ -210,6 +210,7 @@ if button_run_pressed:
                 ])
 
     full_patient_df = reshape_for_animations(full_log_with_patient_details,
+                                            entity_col_name="patient",
                                              every_x_time_units=1,
                                              limit_duration=runtime,
                                              step_snapshot_max=50,
@@ -220,14 +221,15 @@ if button_run_pressed:
         print(f'Reshaped animation dataframe finished construction at {time.strftime("%H:%M:%S", time.localtime())}')
 
     full_patient_df_plus_pos = generate_animation_df(
-                                full_patient_df=full_patient_df,
+                                full_entity_df=full_patient_df,
                                 event_position_df=event_position_df,
+                                entity_col_name="patient",
                                 wrap_queues_at=20,
                                 wrap_resources_at=40,
                                 step_snapshot_max=50,
                                 gap_between_entities=15,
                                 gap_between_resources=15,
-                                gap_between_rows=175,
+                                gap_between_queue_rows=175,
                                 debug_mode=debug_mode
                         )
 
@@ -251,7 +253,7 @@ if button_run_pressed:
     # step. e.g. 194Primary is discharged on 28th July showing a LOS of 1 but prior to this shows a LOS of 9.
     def add_los_to_icon(row):
         if row["event"] == "post_surgery_stay_begins":
-            return f'{row["icon"]}<br>{row["minute"]-row["time"]:.0f}'
+            return f'{row["icon"]}<br>{row["snapshot_time"]-row["time"]:.0f}'
         elif row["event"] == "discharged_after_stay":
             return f'{row["icon"]}<br>{row["los"]:.0f}'
         else:
@@ -310,16 +312,18 @@ if button_run_pressed:
     )
 
     fig = generate_animation(
-            full_patient_df_plus_pos=full_patient_df_plus_pos,
+            full_entity_df_plus_pos=full_patient_df_plus_pos,
             event_position_df=event_position_df,
             scenario=args,
+            entity_col_name="patient",
             plotly_height=950,
             plotly_width=1000,
             override_x_max=800,
             override_y_max=1000,
-            icon_and_text_size=14,
+            text_size=14,
+            resource_icon_size=16,
+            entity_icon_size=14,
             wrap_resources_at=40,
-            gap_between_rows=175,
             gap_between_resources=15,
             include_play_button=True,
             add_background_image=None,
@@ -330,6 +334,7 @@ if button_run_pressed:
             display_stage_labels=False,
             custom_resource_icon="🛏️",
             time_display_units="d",
+            simulation_time_unit="day",
             start_date="2022-06-27",
             setup_mode=False,
             frame_duration=1500, #milliseconds
@@ -337,17 +342,17 @@ if button_run_pressed:
             debug_mode=False
         )
 
-    counts_not_avail = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='no_bed_available'][['minute','patient']].groupby('minute').agg('count')
-    counts_not_avail = counts_not_avail.reset_index().merge(full_patient_df_plus_pos[['minute']].drop_duplicates(), how='right').sort_values('minute')
+    counts_not_avail = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='no_bed_available'][['snapshot_time','patient']].groupby('snapshot_time').agg('count')
+    counts_not_avail = counts_not_avail.reset_index().merge(full_patient_df_plus_pos[['snapshot_time']].drop_duplicates(), how='right').sort_values('snapshot_time')
     counts_not_avail['patient'] = counts_not_avail['patient'].fillna(0)
     counts_not_avail['running_total'] = counts_not_avail['patient'].cumsum()
 
-    counts_ops_completed = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='post_surgery_stay_begins'][['minute','patient']].drop_duplicates('patient').groupby('minute').agg('count')
-    counts_ops_completed = counts_ops_completed.reset_index().merge(full_patient_df_plus_pos[['minute']].drop_duplicates(), how='right').sort_values('minute')
+    counts_ops_completed = full_patient_df_plus_pos[full_patient_df_plus_pos['event']=='post_surgery_stay_begins'][['snapshot_time','patient']].drop_duplicates('patient').groupby('snapshot_time').agg('count')
+    counts_ops_completed = counts_ops_completed.reset_index().merge(full_patient_df_plus_pos[['snapshot_time']].drop_duplicates(), how='right').sort_values('snapshot_time')
     counts_ops_completed['patient'] = counts_ops_completed['patient'].fillna(0)
     counts_ops_completed['running_total'] = counts_ops_completed['patient'].cumsum()
 
-    counts_not_avail = counts_not_avail.merge(counts_ops_completed.rename(columns={'running_total':'completed'}), how="left", on="minute")
+    counts_not_avail = counts_not_avail.merge(counts_ops_completed.rename(columns={'running_total':'completed'}), how="left", on="snapshot_time")
     counts_not_avail['perc_slots_lost'] = counts_not_avail['running_total'] / (counts_not_avail['running_total'] + counts_not_avail['completed'])
 
     #####################################################
@@ -427,7 +432,7 @@ if button_run_pressed:
 
     # Add an initial trace to our secondary line chart
     fig.add_trace(go.Scatter(
-        x=counts_not_avail['minute'],
+        x=counts_not_avail['snapshot_time'],
         y=counts_not_avail['patient_x'],
         mode='lines',
         showlegend=False,
@@ -478,7 +483,7 @@ if button_run_pressed:
         ),) +
         # Line subplot
         (go.Scatter(
-            x=counts_not_avail['minute'][0: i+1].values,
+            x=counts_not_avail['snapshot_time'][0: i+1].values,
             y=counts_not_avail['patient_x'][0: i+1].values,
             mode="lines",
             # name="line",
@@ -518,7 +523,7 @@ if button_run_pressed:
     # sp_test = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
 
     # test = sp_test.add_trace(go.Scatter(
-    #         x=counts_not_avail['minute'][0: i+1].values,
+    #         x=counts_not_avail['snapshot_time'][0: i+1].values,
     #         y=counts_not_avail['running_total'][0: i+1].values,
     #         mode="lines",
     #         name="line",

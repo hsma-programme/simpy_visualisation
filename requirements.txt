@@ -3,5 +3,5 @@ numpy>=1.26.2,<2
 pandas>=2.0.1,<3
 plotly>=5.12.0,<6
 simpy==4.0.2,<5
-vidigi==0.0.4
+vidigi==1.0.0
 streamlit>=1.42.0
