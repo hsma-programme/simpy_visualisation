@@ -5,3 +5,4 @@ plotly>=5.12.0,<6
 simpy==4.0.2,<5
 vidigi==1.0.0
 streamlit>=1.42.0
+arrow
