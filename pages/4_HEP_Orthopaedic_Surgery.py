@@ -24,18 +24,20 @@ st.markdown(
 This is the orthopaedic surgery model developed as part of the hospital efficiency project.
 """
 )
-st.caption(
-    """
-@software{Harper_Hospital_Efficiency_Project,
 
-author = {Harper, Alison and Monks, Thomas},
+st.info(
+"""
+Credit for original model:
 
-license = {MIT},
+**Harper, Alison**, **Monks, Thomas** and **Pitt, Martin**.
 
-title = {{Hospital Efficiency Project  Orthopaedic Planning Model Discrete-Event Simulation}},
+*Hospital Efficiency Project: Orthopaedic Planning Model Discrete-Event Simulation*.
 
-url = {https://github.com/AliHarp/HEP}
-}
+[GitHub Repository: https://github.com/AliHarp/HEP](https://github.com/AliHarp/HEP) — MIT License.
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7951080.svg)](https://doi.org/10.5281/zenodo.7951080)
+
+[Hosted App: https://hospital-efficiency-project.streamlit.app/](https://hospital-efficiency-project.streamlit.app/)
 """)
 
 st.markdown(
@@ -60,6 +62,8 @@ st.divider()
 
 TRACE = True
 debug_mode=True
+
+st.info("For simplicity, here we fix the theatre schedule as follows.")
 
 schedule = Schedule()
 
@@ -104,15 +108,18 @@ with col_b:
 
 st.divider()
 
+st.markdown('# Model Parameters')
+
+st.info("The following parameters can be edited")
+
+
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown('# Model Parameters')
-
-    st.markdown('## Ring-fenced beds:')
+    st.markdown('### Ring-fenced beds:')
     n_beds = st.slider('Beds', 10, 80, 40, 1)
 
-    st.markdown('## Mean lengths-of-stay for each type of surgery:')
+    st.markdown('### Mean lengths-of-stay for each type of surgery:')
     primary_hip_los = st.slider('Primary Hip LoS', 1.0, 10.0, 4.4, 0.1)
 
     primary_knee_los = st.slider('Primary Knee LoS', 1.0, 10.0, 4.7, 0.1)
@@ -124,14 +131,14 @@ with col1:
     unicompart_knee_los = st.slider('Unicompart knee LoS', 1.0, 10.0,2.9, 0.1)
 
 with col2:
-    st.markdown('## Mean length of delayed discharge:')
+    st.markdown('### Mean length of delayed discharge:')
     los_delay = st.slider('Mean length of delay', 2.0, 10.0,16.5, 0.1)
     los_delay_sd = st.slider('Variation of delay (standard deviation)', 1.0, 25.0,15.2, 0.1)
 
-    st.markdown('## Proportion of patients with a discharge delay:')
+    st.markdown('### Proportion of patients with a discharge delay:')
     prop_delay = st.slider('Proportion delayed', 0.00, 1.00, 0.076, 0.01)
 
-    st.markdown('## :green[Model execution]')
+    st.markdown('### :green[Model execution]')
     replications = st.slider(':green[Number of runs]', 1, 50, 30)
     runtime = st.slider(':green[Runtime (days)]', 30, 100, 60)
     warmup=st.slider(':green[Warmup (days)]', 1, 14, 7)
@@ -147,7 +154,11 @@ show_operation_type = anim_param_col_2.selectbox(
     ["Show knee vs hip", "Show revision vs primary", "Show both", "Show standard patient icons"],
     index=0)
 
-button_run_pressed = st.button("Run simulation")
+st.divider()
+
+st.info("When you are ready, click 'Run simulation' below!")
+
+button_run_pressed = st.button("Run simulation", type="primary")
 
 args = Scenario(schedule=schedule,
                 primary_hip_mean_los=primary_hip_los,
@@ -612,7 +623,7 @@ if button_run_pressed:
         return fig
 
 
-    with st.spinner():
+    with st.spinner(show_time=True):
         fig = generate_animation_fig()
 
     @st.fragment()
