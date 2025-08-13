@@ -275,7 +275,7 @@ if button_run_pressed:
                 return "1️⃣<br> "
             elif "r_" in row["surgery type"]:
                 return "♻️<br> "
-            elif "uni_" in row["surgery type"] == "p_hip":
+            elif "uni_" in row["surgery type"]:
                 return "✳️<br> "
             else:
                 return f"CHECK<br>{row['icon']}"
