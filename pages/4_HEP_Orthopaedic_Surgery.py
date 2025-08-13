@@ -142,7 +142,10 @@ anim_param_col_1, anim_param_col_2 = st.columns(2)
 
 show_los = anim_param_col_1.toggle("Show Individual Length of Stay")
 show_delayed_discharges = anim_param_col_1.toggle("Show Delayed Discharges")
-show_operation_type = anim_param_col_2.selectbox("Choose Surgery Detail to Display", ["Show knee vs hip", "Show revision vs primary", "Show both"])
+show_operation_type = anim_param_col_2.selectbox(
+    "Choose Surgery Detail to Display",
+    ["Show knee vs hip", "Show revision vs primary", "Show both", "Show standard patient icons"],
+    index=0)
 
 button_run_pressed = st.button("Run simulation")
 
@@ -244,6 +247,9 @@ if button_run_pressed:
                                     debug_mode=debug_mode
                             )
 
+        def set_icon_standard(row):
+            return f"{row['icon']}<br>"
+
         def set_icon_surgery_target(row):
             if "knee" in row["surgery type"]:
                 return "🦵<br> "
@@ -283,6 +289,8 @@ if button_run_pressed:
             full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(set_icon_surgery_target, axis=1))
         elif show_operation_type == "Show revision vs primary":
             full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(set_icon_surgery_type, axis=1))
+        else:
+            full_patient_df_plus_pos = full_patient_df_plus_pos.assign(icon=full_patient_df_plus_pos.apply(set_icon_standard, axis=1))
 
         # TODO: Check why this doesn't seem to be working quite right for the 'discharged after stay'
         # step. e.g. 194Primary is discharged on 28th July showing a LOS of 1 but prior to this shows a LOS of 9.
@@ -406,9 +414,6 @@ if button_run_pressed:
         # Calculate a running total of this value, which will be used to add the correct value
         # to each individual frame
         counts_ops_completed['running_total'] = counts_ops_completed.sort_values('snapshot_time')['patient'].cumsum()
-
-        st.dataframe(counts_ops_completed)
-
         counts_not_avail = (
             counts_not_avail
             .merge(counts_ops_completed.rename(columns={'running_total':'completed'}),
