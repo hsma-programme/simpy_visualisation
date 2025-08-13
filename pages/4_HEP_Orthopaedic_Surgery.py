@@ -255,7 +255,8 @@ if button_run_pressed:
                                     gap_between_entities=15,
                                     gap_between_resources=15,
                                     gap_between_queue_rows=175,
-                                    debug_mode=debug_mode
+                                    debug_mode=debug_mode,
+                                    gap_between_resource_rows=200
                             )
 
         def set_icon_standard(row):
@@ -375,7 +376,8 @@ if button_run_pressed:
                 setup_mode=False,
                 frame_duration=1500, #milliseconds
                 frame_transition_duration=1000, #milliseconds
-                debug_mode=False
+                debug_mode=False,
+                gap_between_resource_rows=200
             )
 
         # Create an additional dataframe calculating the number of times cancellations occur due
