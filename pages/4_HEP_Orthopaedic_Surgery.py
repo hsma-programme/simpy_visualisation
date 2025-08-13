@@ -461,7 +461,7 @@ if button_run_pressed:
         fig.add_trace(go.Scatter(
                         x=[100],
                         y=[30],
-                        text=f"Operations Completed: {int(counts_ops_completed.sort_values('snapshot_time')['running_total'][0])}",
+                        text=f"Total Operations Completed: {int(counts_ops_completed.sort_values('snapshot_time')['running_total'][0])}",
                         mode='text',
                         textfont=dict(size=20),
                         opacity=0,
@@ -538,7 +538,7 @@ if button_run_pressed:
                 go.Scatter(
                     x=[100],
                     y=[30],
-                    text=f"Operations Completed: {int(counts_ops_completed.sort_values('snapshot_time')['running_total'][i])}",
+                    text=f"Total Operations Completed: {int(counts_ops_completed.sort_values('snapshot_time')['running_total'][i])}",
                     mode='text',
                     textfont=dict(size=20),
                     showlegend=False,
@@ -601,6 +601,10 @@ if button_run_pressed:
 
         # Finally, match these new traces with the text size used elsewhere
         fig.update_traces(textfont_size=14)
+
+        fig.update_layout(
+            yaxis2=dict(title="Operations Cancelled<br>Per Day")
+        )
 
         # sp_test = make_subplots(rows=2, cols=1, row_heights=[0.85, 0.15])
 
