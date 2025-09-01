@@ -1,0 +1,23 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting…</title>
+  <script>
+    // Remove everything after the first segment of the app
+    // Assumes your app is contained in a single "folder" level in the URL
+    const segments = location.pathname.split('/').filter(Boolean);
+
+    // Go to the first segment if it exists, otherwise root
+    const redirectTo = segments.length > 0 ? `/${segments[0]}/` : '/';
+
+    location.replace(redirectTo);
+  </script>
+</head>
+<body>
+  <p>Page not found. Redirecting you to the app…</p>
+</body>
+</html>
