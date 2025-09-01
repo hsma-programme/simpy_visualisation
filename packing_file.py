@@ -15,7 +15,7 @@ pack(
         "numpy",
         "pandas",
         "plotly",
-        "simpy==4.0.2,<5",
+        "simpy==4.0.2",
         "vidigi==1.0.0",
         "arrow",
         "setuptools",
