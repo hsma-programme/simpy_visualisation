@@ -3,6 +3,7 @@ from stlitepack.pack import list_files_in_folders
 
 files_to_link = list_files_in_folders(["examples", "resources"], recursive=True)
 
+files_to_link.extend(["helper_functions.py"])
 print(files_to_link)
 
 pack(
